@@ -12,7 +12,7 @@
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
+
     <style>
         body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
         .bg-line-chat { background-color: #8cabd9; }
@@ -20,7 +20,7 @@
         .hover\:bg-line-green-dark:hover { background-color: #05b34c; }
         .text-line-green { color: #06C755; }
         .border-line-green { border-color: #06C755; }
-        
+
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
@@ -28,6 +28,8 @@
         .aspect-1-1 { aspect-ratio: 1 / 1; }
         .aspect-16-9 { aspect-ratio: 16 / 9; }
         .aspect-1-125 { aspect-ratio: 1 / 1.25; }
+
+        .input-invalid { border-color: #e11d48 !important; background-color: #fff1f2 !important; }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
@@ -67,7 +69,7 @@
                     <p class="text-xs text-slate-500">製作個人多頁名片 ‧ 一鍵免費發送給 LINE 好友</p>
                 </div>
             </div>
-            
+
             <div class="flex items-center gap-2">
                 <button onclick="loadSampleData('business')" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
                     <i class="fa-solid fa-briefcase text-slate-500"></i> 個人名片範本
@@ -84,22 +86,22 @@
 
     <!-- Main Workspace -->
     <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
+
         <!-- Left Panel: Controls & Editor (7 cols) -->
         <div class="lg:col-span-7 space-y-6">
-            
-            <!-- LIFF Engine Banner -->
-            <div class="bg-emerald-50 border border-emerald-200/80 rounded-2xl p-4 flex items-center justify-between">
+
+            <!-- LIFF Engine Banner (dynamic status) -->
+            <div id="liff-banner" class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between transition-colors">
                 <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                        <i class="fa-solid fa-circle-check text-lg"></i>
+                    <div id="liff-banner-icon-wrap" class="w-9 h-9 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center shrink-0">
+                        <i id="liff-banner-icon" class="fa-solid fa-circle-notch fa-spin text-lg"></i>
                     </div>
                     <div>
-                        <h2 class="text-sm font-bold text-emerald-900">系統即發服務已就緒</h2>
-                        <p class="text-xs text-emerald-700">任何 LINE 使用者皆可在此直接製作名片並免費發送給好友，不佔官方帳號費用。</p>
+                        <h2 id="liff-banner-title" class="text-sm font-bold text-slate-700">正在檢查 LINE 發送服務狀態…</h2>
+                        <p id="liff-banner-desc" class="text-xs text-slate-500">請稍候，系統正在確認是否可直接於此頁面發送名片給 LINE 好友。</p>
                     </div>
                 </div>
-                <button onclick="toggleAdvancedLiffConfig()" class="text-xs text-emerald-700 hover:text-emerald-900 font-medium underline shrink-0 ml-2">
+                <button onclick="toggleAdvancedLiffConfig()" class="text-xs text-slate-600 hover:text-slate-900 font-medium underline shrink-0 ml-2">
                     開發者設定
                 </button>
             </div>
@@ -111,17 +113,18 @@
                         <i class="fa-solid fa-code-branch text-emerald-600"></i>
                         <h2 class="font-semibold text-slate-800 text-sm">自訂站長 LIFF ID (開發者選用)</h2>
                     </div>
-                    <span id="liff-status-badge" class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
-                        使用系統內建 LIFF
+                    <span id="liff-status-badge" class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+                        尚未套用自訂 LIFF
                     </span>
                 </div>
                 <div class="flex gap-2">
-                    <input type="text" id="liff-id-input" placeholder="若您有自己的 LIFF ID 可貼於此處" 
+                    <input type="text" id="liff-id-input" placeholder="若您有自己的 LIFF ID 可貼於此處"
                         class="flex-1 px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none transition-all">
                     <button onclick="initCustomLiff()" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-medium rounded-xl shadow-sm transition-colors">
                         套用此 ID
                     </button>
                 </div>
+                <p class="text-[11px] text-slate-400 mt-2">提示：若您是一般使用者且不確定這是什麼，可以忽略此區塊，直接使用下方「複製 JSON 碼」功能發送名片。</p>
             </div>
 
             <!-- Global Style Configurator -->
@@ -135,7 +138,7 @@
                     <!-- Alt Text -->
                     <div class="sm:col-span-2">
                         <label class="block text-xs font-medium text-slate-600 mb-1">訊息摘要 (收到通知時顯示的文字)</label>
-                        <input type="text" id="global-alt-text" oninput="updateStateFromUI()" value="這是我的 LINE 數位個人名片，歡迎交流！" 
+                        <input type="text" id="global-alt-text" oninput="updateStateFromUI()" value="這是我的 LINE 數位個人名片，歡迎交流！"
                             class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none">
                     </div>
 
@@ -203,10 +206,10 @@
 
         <!-- Right Panel: Live LINE Simulator & Actions (5 cols) -->
         <div class="lg:col-span-5 flex flex-col gap-6">
-            
+
             <!-- Sticky Container for Simulator -->
             <div class="sticky top-20 space-y-6">
-                
+
                 <!-- View Toggle Tabs -->
                 <div class="bg-slate-200/80 p-1 rounded-2xl flex text-xs font-semibold">
                     <button id="tab-btn-preview" onclick="switchRightTab('preview')" class="flex-1 py-2 rounded-xl bg-white shadow-sm text-slate-800 text-center transition-all">
@@ -235,7 +238,7 @@
                         <!-- Chat Area with Flex Carousel -->
                         <div class="bg-line-chat p-3 h-[520px] overflow-y-auto overflow-x-hidden flex flex-col justify-end">
                             <div class="text-center text-[10px] text-white/70 mb-3">Today 12:00</div>
-                            
+
                             <!-- LINE Chat Carousel Container -->
                             <div class="w-full overflow-x-auto no-scrollbar py-2">
                                 <div id="phone-carousel-track" class="flex gap-3 px-1 min-w-max">
@@ -276,7 +279,7 @@
                         <i class="fa-brands fa-line text-2xl"></i>
                         <span>傳送名片至 LINE 好友 / 群組</span>
                     </button>
-                    
+
                     <div class="grid grid-cols-2 gap-2">
                         <button onclick="copyGeneratedJson()" class="py-2.5 px-3 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl border border-slate-200 shadow-sm flex items-center justify-center gap-1.5 transition-colors">
                             <i class="fa-regular fa-copy"></i> 複製 JSON 碼
@@ -295,8 +298,10 @@
         // -------------------------------------------------------------
         // Global App Configuration
         // 站長可在此處填入您申請好的預設全域 LIFF ID，一般使用者開頁面即可使用
+        // 若尚未申請，請保留下方預設值，系統會自動偵測並提示改用「複製 JSON」方式
         // -------------------------------------------------------------
-        const DEFAULT_LIFF_ID = "2001234567-AbCdEfGh"; 
+        const DEFAULT_LIFF_ID = "2001234567-AbCdEfGh";
+        const STORAGE_KEY = "line_flex_card_generator_state_v1";
 
         let state = {
             global: {
@@ -336,6 +341,7 @@
 
         let currentLiffId = DEFAULT_LIFF_ID;
         let liffInitialized = false;
+        let liffCheckDone = false; // whether the background auto-check has finished
 
         // Preset Datasets
         const samples = {
@@ -382,6 +388,44 @@
                 ]
             }
         };
+
+        // ---------------------------------------------------------
+        // Local persistence — avoids losing edits when liff.login()
+        // reloads the page, or if the user accidentally refreshes.
+        // ---------------------------------------------------------
+        function saveStateToLocalStorage() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            } catch (e) {
+                console.warn("無法儲存至 localStorage:", e);
+            }
+        }
+
+        function loadStateFromLocalStorage() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) return false;
+                const parsed = JSON.parse(raw);
+                if (parsed && parsed.cards && Array.isArray(parsed.cards) && parsed.cards.length > 0) {
+                    state = parsed;
+                    return true;
+                }
+            } catch (e) {
+                console.warn("無法讀取本機儲存資料:", e);
+            }
+            return false;
+        }
+
+        // Simple URL validity check (must be http/https with a host)
+        function isValidUrl(str) {
+            if (!str) return false;
+            try {
+                const u = new URL(str);
+                return u.protocol === "http:" || u.protocol === "https:";
+            } catch (e) {
+                return false;
+            }
+        }
 
         // Generate LINE Flex Carousel Message JSON
         function generateFlexJson() {
@@ -434,7 +478,7 @@
                                     action: {
                                         type: "uri",
                                         label: card.btnLabel || "查看詳情",
-                                        uri: card.btnUrl || "https://line.me"
+                                        uri: isValidUrl(card.btnUrl) ? card.btnUrl : "https://line.me"
                                     }
                                 }
                             ]
@@ -449,7 +493,10 @@
             const container = document.getElementById("cards-editor-container");
             document.getElementById("card-count-badge").innerText = state.cards.length;
 
-            container.innerHTML = state.cards.map((card, index) => `
+            container.innerHTML = state.cards.map((card, index) => {
+                const imgValid = isValidUrl(card.imageUrl);
+                const urlValid = isValidUrl(card.btnUrl);
+                return `
                 <div class="border border-slate-200 rounded-xl p-4 bg-slate-50/50 hover:bg-white transition-all space-y-3">
                     <div class="flex items-center justify-between pb-2 border-b border-slate-200/60">
                         <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
@@ -469,12 +516,13 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                         <div class="sm:col-span-2">
                             <label class="block font-medium text-slate-600 mb-1">照片網址 (Image URL)</label>
-                            <input type="text" value="${escapeHtml(card.imageUrl)}" oninput="updateCardField(${index}, 'imageUrl', this.value)" 
-                                placeholder="https://..." class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                            <input type="text" value="${escapeHtml(card.imageUrl)}" oninput="updateCardField(${index}, 'imageUrl', this.value)"
+                                placeholder="https://..." class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none ${card.imageUrl && !imgValid ? 'input-invalid' : ''}">
+                            ${card.imageUrl && !imgValid ? '<p class="text-[10px] text-rose-600 mt-1">網址格式不正確，請確認開頭為 http:// 或 https://</p>' : ''}
                         </div>
                         <div class="sm:col-span-2">
                             <label class="block font-medium text-slate-600 mb-1">卡片標題 / 姓名</label>
-                            <input type="text" value="${escapeHtml(card.title)}" oninput="updateCardField(${index}, 'title', this.value)" 
+                            <input type="text" value="${escapeHtml(card.title)}" oninput="updateCardField(${index}, 'title', this.value)"
                                 placeholder="請輸入標題" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
                         </div>
                         <div class="sm:col-span-2">
@@ -484,23 +532,25 @@
                         </div>
                         <div>
                             <label class="block font-medium text-slate-600 mb-1">按鈕顯示文字</label>
-                            <input type="text" value="${escapeHtml(card.btnLabel)}" oninput="updateCardField(${index}, 'btnLabel', this.value)" 
+                            <input type="text" value="${escapeHtml(card.btnLabel)}" oninput="updateCardField(${index}, 'btnLabel', this.value)"
                                 placeholder="例如: 開啟網站" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
                         </div>
                         <div>
                             <label class="block font-medium text-slate-600 mb-1">按鈕點擊連結 (URL)</label>
-                            <input type="text" value="${escapeHtml(card.btnUrl)}" oninput="updateCardField(${index}, 'btnUrl', this.value)" 
-                                placeholder="https://..." class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                            <input type="text" value="${escapeHtml(card.btnUrl)}" oninput="updateCardField(${index}, 'btnUrl', this.value)"
+                                placeholder="https://..." class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none ${card.btnUrl && !urlValid ? 'input-invalid' : ''}">
+                            ${card.btnUrl && !urlValid ? '<p class="text-[10px] text-rose-600 mt-1">網址格式不正確，送出時將自動改用預設連結</p>' : ''}
                         </div>
                     </div>
                 </div>
-            `).join('');
+            `;
+            }).join('');
         }
 
         // Render Live Phone Simulator Preview
         function renderPhonePreview() {
             const track = document.getElementById("phone-carousel-track");
-            
+
             const ratioClasses = {
                 "20:13": "aspect-20-13",
                 "1:1": "aspect-1-1",
@@ -509,17 +559,17 @@
             };
 
             const aspectClass = ratioClasses[state.global.aspectRatio] || "aspect-20-13";
-            const titleSizes = { xs: "text-xs", sm: "text-xs font-semibold", md: "text-sm", lg: "text-base", xl: "text-lg", xxl: "text-xl" };
+            const titleSizes = { md: "text-sm", lg: "text-base", xl: "text-lg", xxl: "text-xl" };
             const descSizes = { xs: "text-[10px]", sm: "text-xs", md: "text-sm" };
 
             track.innerHTML = state.cards.map(card => `
                 <div class="w-[240px] bg-white rounded-2xl overflow-hidden shadow-md border border-slate-100 flex flex-col shrink-0">
                     <div class="w-full ${aspectClass} bg-slate-100 relative overflow-hidden">
-                        <img src="${escapeHtml(card.imageUrl)}" 
-                            onerror="this.onerror=null; this.src='https://placehold.co/800x520/e2e8f0/64748b?text=無圖片';" 
+                        <img src="${escapeHtml(card.imageUrl)}"
+                            onerror="this.onerror=null; this.src='https://placehold.co/800x520/e2e8f0/64748b?text=無圖片';"
                             class="w-full h-full object-cover">
                     </div>
-                    
+
                     <div class="p-3.5 flex-1 flex flex-col justify-between">
                         <div>
                             <h3 class="${titleSizes[state.global.titleSize] || 'text-base'} font-bold text-slate-800 leading-snug">
@@ -529,7 +579,7 @@
                                 ${escapeHtml(card.description)}
                             </p>
                         </div>
-                        
+
                         <div class="mt-4">
                             <div class="w-full text-center ${state.global.btnSize === 'md' ? 'py-2 text-xs' : 'py-1.5 text-[11px]'} font-semibold text-white bg-line-green rounded-xl shadow-sm">
                                 ${escapeHtml(card.btnLabel) || '詳情'}
@@ -549,11 +599,25 @@
             state.global.titleSize = document.getElementById("global-title-size").value;
             state.global.descSize = document.getElementById("global-desc-size").value;
             renderPhonePreview();
+            saveStateToLocalStorage();
         }
 
         function updateCardField(index, field, value) {
             state.cards[index][field] = value;
             renderPhonePreview();
+            saveStateToLocalStorage();
+            // Re-render editors only for URL fields, so the live invalid-url hint stays in sync
+            if (field === 'imageUrl' || field === 'btnUrl') {
+                renderCardEditorsDebounced();
+            }
+        }
+
+        // Debounce the (heavier) editor re-render so typing in a URL field doesn't
+        // steal focus / cursor position on every keystroke.
+        let editorRerenderTimer = null;
+        function renderCardEditorsDebounced() {
+            clearTimeout(editorRerenderTimer);
+            editorRerenderTimer = setTimeout(renderCardEditors, 600);
         }
 
         function addNewCard() {
@@ -570,6 +634,7 @@
                 btnUrl: "https://example.com"
             });
             renderAll();
+            saveStateToLocalStorage();
             showToast("已新增一頁卡片", "success");
         }
 
@@ -580,6 +645,7 @@
             }
             state.cards.splice(index, 1);
             renderAll();
+            saveStateToLocalStorage();
             showToast("已刪除卡片", "info");
         }
 
@@ -592,6 +658,7 @@
             copy.id = "card_" + Date.now();
             state.cards.splice(index + 1, 0, copy);
             renderAll();
+            saveStateToLocalStorage();
             showToast("已複製卡片", "success");
         }
 
@@ -602,6 +669,7 @@
             state.cards[index] = state.cards[newIndex];
             state.cards[newIndex] = temp;
             renderAll();
+            saveStateToLocalStorage();
         }
 
         function loadSampleData(type) {
@@ -613,7 +681,44 @@
                 document.getElementById("global-title-size").value = state.global.titleSize;
                 document.getElementById("global-desc-size").value = state.global.descSize;
                 renderAll();
+                saveStateToLocalStorage();
                 showToast(`已載入「${type === 'business' ? '個人名片' : '商品服務'}」範本`, "success");
+            }
+        }
+
+        // ---------------------------------------------------------
+        // LIFF status banner — reflects the REAL initialization result
+        // instead of always claiming the service is ready.
+        // ---------------------------------------------------------
+        function setLiffBanner(status) {
+            // status: 'checking' | 'ready' | 'unavailable'
+            const iconWrap = document.getElementById("liff-banner-icon-wrap");
+            const icon = document.getElementById("liff-banner-icon");
+            const title = document.getElementById("liff-banner-title");
+            const desc = document.getElementById("liff-banner-desc");
+            const banner = document.getElementById("liff-banner");
+
+            if (status === 'checking') {
+                banner.className = "bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between transition-colors";
+                iconWrap.className = "w-9 h-9 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center shrink-0";
+                icon.className = "fa-solid fa-circle-notch fa-spin text-lg";
+                title.className = "text-sm font-bold text-slate-700";
+                title.innerText = "正在檢查 LINE 發送服務狀態…";
+                desc.innerText = "請稍候，系統正在確認是否可直接於此頁面發送名片給 LINE 好友。";
+            } else if (status === 'ready') {
+                banner.className = "bg-emerald-50 border border-emerald-200/80 rounded-2xl p-4 flex items-center justify-between transition-colors";
+                iconWrap.className = "w-9 h-9 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0";
+                icon.className = "fa-solid fa-circle-check text-lg";
+                title.className = "text-sm font-bold text-emerald-900";
+                title.innerText = "系統即發服務已就緒";
+                desc.innerText = "任何 LINE 使用者皆可在此直接製作名片並免費發送給好友，不佔官方帳號費用。";
+            } else {
+                banner.className = "bg-amber-50 border border-amber-200/80 rounded-2xl p-4 flex items-center justify-between transition-colors";
+                iconWrap.className = "w-9 h-9 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0";
+                icon.className = "fa-solid fa-triangle-exclamation text-lg";
+                title.className = "text-sm font-bold text-amber-900";
+                title.innerText = "尚未設定即發服務";
+                desc.innerText = "此部署環境尚未設定有效 LIFF ID，請點下方按鈕改用「複製 JSON 碼」貼到您的 LINE 官方帳號後台發送，或洽站長設定開發者 LIFF ID。";
             }
         }
 
@@ -625,47 +730,56 @@
                 return true;
             } catch (err) {
                 console.warn("LIFF Init Exception:", err);
+                liffInitialized = false;
                 return false;
             }
+        }
+
+        // Runs once on page load, silently, to determine the real banner status
+        async function autoCheckLiffStatus() {
+            setLiffBanner('checking');
+            const ok = await setupLiff(currentLiffId);
+            liffCheckDone = true;
+            setLiffBanner(ok ? 'ready' : 'unavailable');
         }
 
         // Main Send Function for End-Users
         async function sendCardToLineFriends() {
             const flexJson = generateFlexJson();
 
-            // Try initializing default or custom LIFF ID
-            if (!liffInitialized) {
-                showToast("正在啟動 LINE 分享模組...", "info");
-                const success = await setupLiff(currentLiffId);
-                if (!success) {
-                    showToast("此部署環境尚未設定有效 LIFF ID，切換為 JSON 模式", "warning");
-                    switchRightTab('json');
-                    copyGeneratedJson();
-                    return;
-                }
+            // Wait for the background auto-check if it hasn't finished yet
+            if (!liffCheckDone) {
+                showToast("正在啟動 LINE 分享模組，請稍候再試一次...", "info");
+                return;
             }
 
-            if (liffInitialized) {
-                if (!liff.isLoggedIn()) {
-                    showToast("正在引導登入 LINE 帳號...", "info");
-                    liff.login();
-                    return;
-                }
+            if (!liffInitialized) {
+                showToast("此部署環境尚未設定有效 LIFF ID，已切換為 JSON 模式", "warning");
+                switchRightTab('json');
+                copyGeneratedJson();
+                return;
+            }
 
-                if (liff.isApiAvailable('shareTargetPicker')) {
-                    try {
-                        const res = await liff.shareTargetPicker([flexJson]);
-                        if (res) {
-                            showToast("名片已成功傳送！", "success");
-                        } else {
-                            showToast("已取消傳送", "info");
-                        }
-                    } catch (err) {
-                        showToast("發送失敗: " + err.message, "error");
+            if (!liff.isLoggedIn()) {
+                showToast("正在引導登入 LINE 帳號...", "info");
+                saveStateToLocalStorage(); // make sure edits survive the redirect
+                liff.login();
+                return;
+            }
+
+            if (liff.isApiAvailable('shareTargetPicker')) {
+                try {
+                    const res = await liff.shareTargetPicker([flexJson]);
+                    if (res) {
+                        showToast("名片已成功傳送！", "success");
+                    } else {
+                        showToast("已取消傳送", "info");
                     }
-                } else {
-                    showToast("請在 LINE App 內開啟此網頁即可直接發送", "error");
+                } catch (err) {
+                    showToast("發送失敗: " + err.message, "error");
                 }
+            } else {
+                showToast("請在 LINE App 內開啟此網頁即可直接發送", "error");
             }
         }
 
@@ -682,12 +796,19 @@
             }
             currentLiffId = customId;
             liffInitialized = false;
+            liffCheckDone = false;
+            setLiffBanner('checking');
             const ok = await setupLiff(currentLiffId);
+            liffCheckDone = true;
+            setLiffBanner(ok ? 'ready' : 'unavailable');
             if (ok) {
                 showToast("已更換為自訂 LIFF ID 並初始化成功！", "success");
                 document.getElementById("liff-status-badge").innerText = "自訂 LIFF 已就緒";
+                document.getElementById("liff-status-badge").className = "px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800";
             } else {
                 showToast("自訂 LIFF 初始化失敗，請檢查 ID 是否正確", "error");
+                document.getElementById("liff-status-badge").innerText = "自訂 LIFF 初始化失敗";
+                document.getElementById("liff-status-badge").className = "px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-700";
             }
         }
 
@@ -714,6 +835,7 @@
                 if (parsed.cards && Array.isArray(parsed.cards)) {
                     state = parsed;
                     renderAll();
+                    saveStateToLocalStorage();
                     closeModal();
                     showToast("成功匯入資料！", "success");
                 } else {
@@ -792,7 +914,18 @@
         }
 
         window.onload = function() {
+            // Restore any previously saved edits (e.g. after a liff.login() redirect)
+            const restored = loadStateFromLocalStorage();
+            if (restored) {
+                document.getElementById("global-alt-text").value = state.global.altText;
+                document.getElementById("global-aspect-ratio").value = state.global.aspectRatio;
+                document.getElementById("global-btn-size").value = state.global.btnSize;
+                document.getElementById("global-title-size").value = state.global.titleSize;
+                document.getElementById("global-desc-size").value = state.global.descSize;
+            }
             renderAll();
+            // Kick off the real LIFF status check in the background
+            autoCheckLiffStatus();
         };
     </script>
 </body>
