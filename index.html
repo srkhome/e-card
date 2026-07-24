@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LINE Flex 數位名片 & 輪播訊息產生器</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- LINE LIFF SDK -->
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        .bg-line-chat { background-color: #8cabd9; }
+        .bg-line-green { background-color: #06C755; }
+        .hover\:bg-line-green-dark:hover { background-color: #05b34c; }
+        .text-line-green { color: #06C755; }
+        .border-line-green { border-color: #06C755; }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .aspect-20-13 { aspect-ratio: 20 / 13; }
+        .aspect-1-1 { aspect-ratio: 1 / 1; }
+        .aspect-16-9 { aspect-ratio: 16 / 9; }
+        .aspect-1-125 { aspect-ratio: 1 / 1.25; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Modal Dialog (JSON Import/Export & Advanced Settings) -->
+    <div id="modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center pb-4 border-b border-slate-100">
+                <h3 id="modal-title" class="text-xl font-bold text-slate-800">進階資料設定</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-lg p-1">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="py-4 flex-1 overflow-hidden flex flex-col">
+                <p id="modal-desc" class="text-sm text-slate-500 mb-2">請複製或貼上 Flex Message JSON 資料：</p>
+                <textarea id="modal-textarea" class="w-full flex-1 min-h-[250px] p-3 text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none resize-none"></textarea>
+            </div>
+            <div class="pt-4 border-t border-slate-100 flex justify-end gap-3" id="modal-actions">
+                <button onclick="closeModal()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl">取消</button>
+                <button id="modal-submit-btn" class="px-5 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm">確認匯入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-line-green flex items-center justify-center text-white font-bold text-xl shadow-md shadow-emerald-500/20">
+                    <i class="fa-brands fa-line"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-slate-900 text-lg leading-tight">LINE 免費數位名片產生器</h1>
+                    <p class="text-xs text-slate-500">製作個人多頁名片 ‧ 一鍵免費發送給 LINE 好友</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <button onclick="loadSampleData('business')" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
+                    <i class="fa-solid fa-briefcase text-slate-500"></i> 個人名片範本
+                </button>
+                <button onclick="loadSampleData('product')" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
+                    <i class="fa-solid fa-store text-slate-500"></i> 商品服務範本
+                </button>
+                <button onclick="openImportExportModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200">
+                    <i class="fa-solid fa-file-code"></i> JSON 備份
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- Left Panel: Controls & Editor (7 cols) -->
+        <div class="lg:col-span-7 space-y-6">
+            
+            <!-- LIFF Engine Banner -->
+            <div class="bg-emerald-50 border border-emerald-200/80 rounded-2xl p-4 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-circle-check text-lg"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-sm font-bold text-emerald-900">系統即發服務已就緒</h2>
+                        <p class="text-xs text-emerald-700">任何 LINE 使用者皆可在此直接製作名片並免費發送給好友，不佔官方帳號費用。</p>
+                    </div>
+                </div>
+                <button onclick="toggleAdvancedLiffConfig()" class="text-xs text-emerald-700 hover:text-emerald-900 font-medium underline shrink-0 ml-2">
+                    開發者設定
+                </button>
+            </div>
+
+            <!-- Optional Custom LIFF ID Box (Hidden by default for ordinary users) -->
+            <div id="advanced-liff-box" class="hidden bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-code-branch text-emerald-600"></i>
+                        <h2 class="font-semibold text-slate-800 text-sm">自訂站長 LIFF ID (開發者選用)</h2>
+                    </div>
+                    <span id="liff-status-badge" class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                        使用系統內建 LIFF
+                    </span>
+                </div>
+                <div class="flex gap-2">
+                    <input type="text" id="liff-id-input" placeholder="若您有自己的 LIFF ID 可貼於此處" 
+                        class="flex-1 px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none transition-all">
+                    <button onclick="initCustomLiff()" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-medium rounded-xl shadow-sm transition-colors">
+                        套用此 ID
+                    </button>
+                </div>
+            </div>
+
+            <!-- Global Style Configurator -->
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 space-y-4">
+                <div class="flex items-center gap-2 pb-3 border-b border-slate-100">
+                    <i class="fa-solid fa-sliders text-emerald-600"></i>
+                    <h2 class="font-semibold text-slate-800">卡片視覺風格與長寬設定</h2>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                    <!-- Alt Text -->
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-medium text-slate-600 mb-1">訊息摘要 (收到通知時顯示的文字)</label>
+                        <input type="text" id="global-alt-text" oninput="updateStateFromUI()" value="這是我的 LINE 數位個人名片，歡迎交流！" 
+                            class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none">
+                    </div>
+
+                    <!-- Image Aspect Ratio -->
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">圖片長寬比</label>
+                        <select id="global-aspect-ratio" onchange="updateStateFromUI()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none">
+                            <option value="20:13" selected>20:13 (橫向標準名片)</option>
+                            <option value="1:1">1:1 (正方形)</option>
+                            <option value="16:9">16:9 (寬螢幕)</option>
+                            <option value="1:1.25">1:1.25 (直向長方形)</option>
+                        </select>
+                    </div>
+
+                    <!-- Button Size -->
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">按鈕大小</label>
+                        <select id="global-btn-size" onchange="updateStateFromUI()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none">
+                            <option value="sm" selected>標準按鈕 (sm)</option>
+                            <option value="md">加高按鈕 (md)</option>
+                        </select>
+                    </div>
+
+                    <!-- Title Font Size -->
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">標題文字大小</label>
+                        <select id="global-title-size" onchange="updateStateFromUI()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none">
+                            <option value="md">中 (md)</option>
+                            <option value="lg">大 (lg)</option>
+                            <option value="xl" selected>特大 (xl)</option>
+                            <option value="xxl">超大 (xxl)</option>
+                        </select>
+                    </div>
+
+                    <!-- Desc Font Size -->
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">說明內文大小</label>
+                        <select id="global-desc-size" onchange="updateStateFromUI()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none">
+                            <option value="xs">精簡小字 (xs)</option>
+                            <option value="sm" selected>標準大小 (sm)</option>
+                            <option value="md">清晰大字 (md)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cards List Editor -->
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 space-y-4">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-layer-group text-emerald-600"></i>
+                        <h2 class="font-semibold text-slate-800">名片頁數管理 (<span id="card-count-badge">0</span>/10)</h2>
+                    </div>
+                    <button onclick="addNewCard()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition-colors">
+                        <i class="fa-solid fa-plus"></i> 新增下一頁卡片
+                    </button>
+                </div>
+
+                <!-- Accordion Container for Cards -->
+                <div id="cards-editor-container" class="space-y-4">
+                    <!-- Dynamically populated card forms -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Live LINE Simulator & Actions (5 cols) -->
+        <div class="lg:col-span-5 flex flex-col gap-6">
+            
+            <!-- Sticky Container for Simulator -->
+            <div class="sticky top-20 space-y-6">
+                
+                <!-- View Toggle Tabs -->
+                <div class="bg-slate-200/80 p-1 rounded-2xl flex text-xs font-semibold">
+                    <button id="tab-btn-preview" onclick="switchRightTab('preview')" class="flex-1 py-2 rounded-xl bg-white shadow-sm text-slate-800 text-center transition-all">
+                        <i class="fa-solid fa-mobile-screen mr-1 text-emerald-600"></i> LINE 聊天室模擬畫面
+                    </button>
+                    <button id="tab-btn-json" onclick="switchRightTab('json')" class="flex-1 py-2 rounded-xl text-slate-600 hover:text-slate-900 text-center transition-all">
+                        <i class="fa-solid fa-code mr-1"></i> JSON 原始碼
+                    </button>
+                </div>
+
+                <!-- PHONE SIMULATOR VIEW -->
+                <div id="view-preview" class="block">
+                    <div class="w-full max-w-[380px] mx-auto bg-slate-900 rounded-[40px] p-3 shadow-2xl border-4 border-slate-800">
+                        <!-- Phone Screen Top Bar -->
+                        <div class="bg-line-chat rounded-t-[30px] pt-3 px-5 pb-2 text-white flex justify-between items-center text-xs">
+                            <div class="flex items-center gap-1.5">
+                                <i class="fa-solid fa-chevron-left text-sm"></i>
+                                <span class="font-medium">LINE 聊天室</span>
+                            </div>
+                            <div class="flex gap-2 text-xs">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <i class="fa-solid fa-bars"></i>
+                            </div>
+                        </div>
+
+                        <!-- Chat Area with Flex Carousel -->
+                        <div class="bg-line-chat p-3 h-[520px] overflow-y-auto overflow-x-hidden flex flex-col justify-end">
+                            <div class="text-center text-[10px] text-white/70 mb-3">Today 12:00</div>
+                            
+                            <!-- LINE Chat Carousel Container -->
+                            <div class="w-full overflow-x-auto no-scrollbar py-2">
+                                <div id="phone-carousel-track" class="flex gap-3 px-1 min-w-max">
+                                    <!-- Dynamic Carousel Bubbles Rendered Here -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Phone Bottom Bar -->
+                        <div class="bg-white rounded-b-[30px] p-3 flex items-center justify-between text-slate-400 text-lg">
+                            <i class="fa-solid fa-plus"></i>
+                            <i class="fa-solid fa-camera"></i>
+                            <i class="fa-solid fa-image"></i>
+                            <div class="bg-slate-100 text-slate-400 text-xs px-3 py-1.5 rounded-full flex-1 mx-2">
+                                輸入訊息...
+                            </div>
+                            <i class="fa-solid fa-microphone"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- JSON CODE VIEW -->
+                <div id="view-json" class="hidden">
+                    <div class="bg-slate-900 rounded-2xl p-4 shadow-xl text-slate-200">
+                        <div class="flex justify-between items-center pb-3 border-b border-slate-800 text-xs text-slate-400">
+                            <span>Flex Message JSON Output</span>
+                            <button onclick="copyGeneratedJson()" class="text-emerald-400 hover:text-emerald-300 flex items-center gap-1">
+                                <i class="fa-solid fa-copy"></i> 複製 JSON
+                            </button>
+                        </div>
+                        <pre id="json-code-block" class="mt-3 text-xs font-mono max-h-[480px] overflow-y-auto text-emerald-400 leading-relaxed p-1"></pre>
+                    </div>
+                </div>
+
+                <!-- Action Button Bar -->
+                <div class="space-y-2">
+                    <button onclick="sendCardToLineFriends()" class="w-full py-4 px-4 bg-line-green hover:bg-line-green-dark text-white font-bold rounded-2xl shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 text-base transition-all transform active:scale-[0.99]">
+                        <i class="fa-brands fa-line text-2xl"></i>
+                        <span>傳送名片至 LINE 好友 / 群組</span>
+                    </button>
+                    
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="copyGeneratedJson()" class="py-2.5 px-3 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl border border-slate-200 shadow-sm flex items-center justify-center gap-1.5 transition-colors">
+                            <i class="fa-regular fa-copy"></i> 複製 JSON 碼
+                        </button>
+                        <button onclick="openImportExportModal()" class="py-2.5 px-3 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl border border-slate-200 shadow-sm flex items-center justify-center gap-1.5 transition-colors">
+                            <i class="fa-solid fa-download"></i> 匯出/備份資料
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // -------------------------------------------------------------
+        // Global App Configuration
+        // 站長可在此處填入您申請好的預設全域 LIFF ID，一般使用者開頁面即可使用
+        // -------------------------------------------------------------
+        const DEFAULT_LIFF_ID = "2001234567-AbCdEfGh"; 
+
+        let state = {
+            global: {
+                altText: "這是我的 LINE 數位個人名片，歡迎交流！",
+                aspectRatio: "20:13",
+                btnSize: "sm",
+                titleSize: "xl",
+                descSize: "sm"
+            },
+            cards: [
+                {
+                    id: "card_1",
+                    imageUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80",
+                    title: "Alex Chen | 創辦人",
+                    description: "專注於 AI 產品設計與 Web 全棧開發，歡迎聯絡交流與合作！",
+                    btnLabel: "瀏覽個人網站與作品集",
+                    btnUrl: "https://example.com"
+                },
+                {
+                    id: "card_2",
+                    imageUrl: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800&q=80",
+                    title: "核心服務項目",
+                    description: "提供 UI/UX 設計、LINE LIFF 微應用開發與企業顧問諮詢。",
+                    btnLabel: "預約線上諮詢時間",
+                    btnUrl: "https://example.com/booking"
+                },
+                {
+                    id: "card_3",
+                    imageUrl: "https://images.unsplash.com/photo-1423666639041-f56000c27a9a?auto=format&fit=crop&w=800&q=80",
+                    title: "聯絡方式",
+                    description: "Email: alex@example.com\n電話: 0912-345-678\n地址: 台北市信義區",
+                    btnLabel: "加為 LINE 好友",
+                    btnUrl: "https://line.me"
+                }
+            ]
+        };
+
+        let currentLiffId = DEFAULT_LIFF_ID;
+        let liffInitialized = false;
+
+        // Preset Datasets
+        const samples = {
+            business: {
+                global: { altText: "這是我的個人數位名片", aspectRatio: "20:13", btnSize: "sm", titleSize: "xl", descSize: "sm" },
+                cards: [
+                    {
+                        id: "c1",
+                        imageUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=800&q=80",
+                        title: "張雅婷 | 資深設計總監",
+                        description: "品牌視覺規劃 | 數位產品 UI/UX 設計 | 10年跨國專案經驗",
+                        btnLabel: "線上作品集",
+                        btnUrl: "https://example.com/portfolio"
+                    },
+                    {
+                        id: "c2",
+                        imageUrl: "https://images.unsplash.com/photo-1600880292203-757bb62b4baf?auto=format&fit=crop&w=800&q=80",
+                        title: "設計服務內容",
+                        description: "1. 企業識別 CIS 規劃\n2. App / Web 介面設計\n3. 品牌顧問諮詢",
+                        btnLabel: "預約服務報價",
+                        btnUrl: "https://example.com/pricing"
+                    }
+                ]
+            },
+            product: {
+                global: { altText: "精選熱銷商品推薦", aspectRatio: "1:1", btnSize: "md", titleSize: "lg", descSize: "xs" },
+                cards: [
+                    {
+                        id: "p1",
+                        imageUrl: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80",
+                        title: "無線降噪耳機 Pro",
+                        description: "極致音質與 30 小時超長續航，限時優惠 NT$ 4,280",
+                        btnLabel: "立即下單購買",
+                        btnUrl: "https://example.com/buy/1"
+                    },
+                    {
+                        id: "p2",
+                        imageUrl: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=800&q=80",
+                        title: "極簡極致智慧手錶",
+                        description: "全天候健康監測與運動追蹤，防水達 50 米",
+                        btnLabel: "查看商品詳情",
+                        btnUrl: "https://example.com/buy/2"
+                    }
+                ]
+            }
+        };
+
+        // Generate LINE Flex Carousel Message JSON
+        function generateFlexJson() {
+            return {
+                type: "flex",
+                altText: state.global.altText || "數位名片",
+                contents: {
+                    type: "carousel",
+                    contents: state.cards.map(card => ({
+                        type: "bubble",
+                        hero: {
+                            type: "image",
+                            url: card.imageUrl || "https://placehold.co/800x520/e2e8f0/64748b?text=No+Image",
+                            size: "full",
+                            aspectRatio: state.global.aspectRatio,
+                            aspectMode: "cover"
+                        },
+                        body: {
+                            type: "box",
+                            layout: "vertical",
+                            contents: [
+                                {
+                                    type: "text",
+                                    text: card.title || "無標題",
+                                    weight: "bold",
+                                    size: state.global.titleSize,
+                                    wrap: true,
+                                    color: "#1e293b"
+                                },
+                                {
+                                    type: "text",
+                                    text: card.description || "",
+                                    size: state.global.descSize,
+                                    color: "#64748b",
+                                    wrap: true,
+                                    margin: "md"
+                                }
+                            ]
+                        },
+                        footer: {
+                            type: "box",
+                            layout: "vertical",
+                            spacing: "sm",
+                            contents: [
+                                {
+                                    type: "button",
+                                    style: "primary",
+                                    color: "#06C755",
+                                    height: state.global.btnSize,
+                                    action: {
+                                        type: "uri",
+                                        label: card.btnLabel || "查看詳情",
+                                        uri: card.btnUrl || "https://line.me"
+                                    }
+                                }
+                            ]
+                        }
+                    }))
+                }
+            };
+        }
+
+        // Render Form Controls for Cards
+        function renderCardEditors() {
+            const container = document.getElementById("cards-editor-container");
+            document.getElementById("card-count-badge").innerText = state.cards.length;
+
+            container.innerHTML = state.cards.map((card, index) => `
+                <div class="border border-slate-200 rounded-xl p-4 bg-slate-50/50 hover:bg-white transition-all space-y-3">
+                    <div class="flex items-center justify-between pb-2 border-b border-slate-200/60">
+                        <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                            <span class="w-5 h-5 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[10px]">
+                                ${index + 1}
+                            </span>
+                            第 ${index + 1} 頁卡片
+                        </span>
+                        <div class="flex items-center gap-1 text-slate-400">
+                            ${index > 0 ? `<button onclick="moveCard(${index}, -1)" class="p-1 hover:text-slate-700" title="上移"><i class="fa-solid fa-arrow-up text-xs"></i></button>` : ''}
+                            ${index < state.cards.length - 1 ? `<button onclick="moveCard(${index}, 1)" class="p-1 hover:text-slate-700" title="下移"><i class="fa-solid fa-arrow-down text-xs"></i></button>` : ''}
+                            <button onclick="duplicateCard(${index})" class="p-1 hover:text-emerald-600" title="複製"><i class="fa-regular fa-copy text-xs"></i></button>
+                            <button onclick="deleteCard(${index})" class="p-1 hover:text-rose-600" title="刪除"><i class="fa-solid fa-trash-can text-xs"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div class="sm:col-span-2">
+                            <label class="block font-medium text-slate-600 mb-1">照片網址 (Image URL)</label>
+                            <input type="text" value="${escapeHtml(card.imageUrl)}" oninput="updateCardField(${index}, 'imageUrl', this.value)" 
+                                placeholder="https://..." class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block font-medium text-slate-600 mb-1">卡片標題 / 姓名</label>
+                            <input type="text" value="${escapeHtml(card.title)}" oninput="updateCardField(${index}, 'title', this.value)" 
+                                placeholder="請輸入標題" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block font-medium text-slate-600 mb-1">內文說明 / 簡介</label>
+                            <textarea oninput="updateCardField(${index}, 'description', this.value)" rows="2"
+                                placeholder="請輸入介紹內容" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">${escapeHtml(card.description)}</textarea>
+                        </div>
+                        <div>
+                            <label class="block font-medium text-slate-600 mb-1">按鈕顯示文字</label>
+                            <input type="text" value="${escapeHtml(card.btnLabel)}" oninput="updateCardField(${index}, 'btnLabel', this.value)" 
+                                placeholder="例如: 開啟網站" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block font-medium text-slate-600 mb-1">按鈕點擊連結 (URL)</label>
+                            <input type="text" value="${escapeHtml(card.btnUrl)}" oninput="updateCardField(${index}, 'btnUrl', this.value)" 
+                                placeholder="https://..." class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Render Live Phone Simulator Preview
+        function renderPhonePreview() {
+            const track = document.getElementById("phone-carousel-track");
+            
+            const ratioClasses = {
+                "20:13": "aspect-20-13",
+                "1:1": "aspect-1-1",
+                "16:9": "aspect-16-9",
+                "1:1.25": "aspect-1-125"
+            };
+
+            const aspectClass = ratioClasses[state.global.aspectRatio] || "aspect-20-13";
+            const titleSizes = { xs: "text-xs", sm: "text-xs font-semibold", md: "text-sm", lg: "text-base", xl: "text-lg", xxl: "text-xl" };
+            const descSizes = { xs: "text-[10px]", sm: "text-xs", md: "text-sm" };
+
+            track.innerHTML = state.cards.map(card => `
+                <div class="w-[240px] bg-white rounded-2xl overflow-hidden shadow-md border border-slate-100 flex flex-col shrink-0">
+                    <div class="w-full ${aspectClass} bg-slate-100 relative overflow-hidden">
+                        <img src="${escapeHtml(card.imageUrl)}" 
+                            onerror="this.onerror=null; this.src='https://placehold.co/800x520/e2e8f0/64748b?text=無圖片';" 
+                            class="w-full h-full object-cover">
+                    </div>
+                    
+                    <div class="p-3.5 flex-1 flex flex-col justify-between">
+                        <div>
+                            <h3 class="${titleSizes[state.global.titleSize] || 'text-base'} font-bold text-slate-800 leading-snug">
+                                ${escapeHtml(card.title) || '無標題'}
+                            </h3>
+                            <p class="${descSizes[state.global.descSize] || 'text-xs'} text-slate-500 mt-1.5 whitespace-pre-line leading-relaxed">
+                                ${escapeHtml(card.description)}
+                            </p>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <div class="w-full text-center ${state.global.btnSize === 'md' ? 'py-2 text-xs' : 'py-1.5 text-[11px]'} font-semibold text-white bg-line-green rounded-xl shadow-sm">
+                                ${escapeHtml(card.btnLabel) || '詳情'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById("json-code-block").innerText = JSON.stringify(generateFlexJson(), null, 2);
+        }
+
+        function updateStateFromUI() {
+            state.global.altText = document.getElementById("global-alt-text").value;
+            state.global.aspectRatio = document.getElementById("global-aspect-ratio").value;
+            state.global.btnSize = document.getElementById("global-btn-size").value;
+            state.global.titleSize = document.getElementById("global-title-size").value;
+            state.global.descSize = document.getElementById("global-desc-size").value;
+            renderPhonePreview();
+        }
+
+        function updateCardField(index, field, value) {
+            state.cards[index][field] = value;
+            renderPhonePreview();
+        }
+
+        function addNewCard() {
+            if (state.cards.length >= 10) {
+                showToast("LINE 輪播最多只支援 10 張卡片", "warning");
+                return;
+            }
+            state.cards.push({
+                id: "card_" + Date.now(),
+                imageUrl: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=800&q=80",
+                title: "新名片頁面",
+                description: "請填寫此頁面的詳細說明或內容介紹",
+                btnLabel: "了解詳情",
+                btnUrl: "https://example.com"
+            });
+            renderAll();
+            showToast("已新增一頁卡片", "success");
+        }
+
+        function deleteCard(index) {
+            if (state.cards.length <= 1) {
+                showToast("至少需保留一張卡片", "warning");
+                return;
+            }
+            state.cards.splice(index, 1);
+            renderAll();
+            showToast("已刪除卡片", "info");
+        }
+
+        function duplicateCard(index) {
+            if (state.cards.length >= 10) {
+                showToast("最多只可建立 10 張卡片", "warning");
+                return;
+            }
+            const copy = JSON.parse(JSON.stringify(state.cards[index]));
+            copy.id = "card_" + Date.now();
+            state.cards.splice(index + 1, 0, copy);
+            renderAll();
+            showToast("已複製卡片", "success");
+        }
+
+        function moveCard(index, direction) {
+            const newIndex = index + direction;
+            if (newIndex < 0 || newIndex >= state.cards.length) return;
+            const temp = state.cards[index];
+            state.cards[index] = state.cards[newIndex];
+            state.cards[newIndex] = temp;
+            renderAll();
+        }
+
+        function loadSampleData(type) {
+            if (samples[type]) {
+                state = JSON.parse(JSON.stringify(samples[type]));
+                document.getElementById("global-alt-text").value = state.global.altText;
+                document.getElementById("global-aspect-ratio").value = state.global.aspectRatio;
+                document.getElementById("global-btn-size").value = state.global.btnSize;
+                document.getElementById("global-title-size").value = state.global.titleSize;
+                document.getElementById("global-desc-size").value = state.global.descSize;
+                renderAll();
+                showToast(`已載入「${type === 'business' ? '個人名片' : '商品服務'}」範本`, "success");
+            }
+        }
+
+        // Initialize LIFF
+        async function setupLiff(liffId) {
+            try {
+                await liff.init({ liffId: liffId });
+                liffInitialized = true;
+                return true;
+            } catch (err) {
+                console.warn("LIFF Init Exception:", err);
+                return false;
+            }
+        }
+
+        // Main Send Function for End-Users
+        async function sendCardToLineFriends() {
+            const flexJson = generateFlexJson();
+
+            // Try initializing default or custom LIFF ID
+            if (!liffInitialized) {
+                showToast("正在啟動 LINE 分享模組...", "info");
+                const success = await setupLiff(currentLiffId);
+                if (!success) {
+                    showToast("此部署環境尚未設定有效 LIFF ID，切換為 JSON 模式", "warning");
+                    switchRightTab('json');
+                    copyGeneratedJson();
+                    return;
+                }
+            }
+
+            if (liffInitialized) {
+                if (!liff.isLoggedIn()) {
+                    showToast("正在引導登入 LINE 帳號...", "info");
+                    liff.login();
+                    return;
+                }
+
+                if (liff.isApiAvailable('shareTargetPicker')) {
+                    try {
+                        const res = await liff.shareTargetPicker([flexJson]);
+                        if (res) {
+                            showToast("名片已成功傳送！", "success");
+                        } else {
+                            showToast("已取消傳送", "info");
+                        }
+                    } catch (err) {
+                        showToast("發送失敗: " + err.message, "error");
+                    }
+                } else {
+                    showToast("請在 LINE App 內開啟此網頁即可直接發送", "error");
+                }
+            }
+        }
+
+        function toggleAdvancedLiffConfig() {
+            const box = document.getElementById("advanced-liff-box");
+            box.classList.toggle("hidden");
+        }
+
+        async function initCustomLiff() {
+            const customId = document.getElementById("liff-id-input").value.trim();
+            if (!customId) {
+                showToast("請輸入有效的 LIFF ID", "warning");
+                return;
+            }
+            currentLiffId = customId;
+            liffInitialized = false;
+            const ok = await setupLiff(currentLiffId);
+            if (ok) {
+                showToast("已更換為自訂 LIFF ID 並初始化成功！", "success");
+                document.getElementById("liff-status-badge").innerText = "自訂 LIFF 已就緒";
+            } else {
+                showToast("自訂 LIFF 初始化失敗，請檢查 ID 是否正確", "error");
+            }
+        }
+
+        function copyGeneratedJson() {
+            copyToClipboard(JSON.stringify(generateFlexJson(), null, 2));
+            showToast("已複製 Flex JSON 至剪貼簿！", "success");
+        }
+
+        function openImportExportModal() {
+            const modal = document.getElementById("modal");
+            document.getElementById("modal-textarea").value = JSON.stringify(state, null, 2);
+            document.getElementById("modal-submit-btn").onclick = importDataFromModal;
+            modal.classList.remove("hidden");
+        }
+
+        function closeModal() {
+            document.getElementById("modal").classList.add("hidden");
+        }
+
+        function importDataFromModal() {
+            const text = document.getElementById("modal-textarea").value.trim();
+            try {
+                const parsed = JSON.parse(text);
+                if (parsed.cards && Array.isArray(parsed.cards)) {
+                    state = parsed;
+                    renderAll();
+                    closeModal();
+                    showToast("成功匯入資料！", "success");
+                } else {
+                    showToast("資料格式錯誤", "error");
+                }
+            } catch (e) {
+                showToast("JSON 解析失敗", "error");
+            }
+        }
+
+        function copyToClipboard(text) {
+            const textarea = document.createElement("textarea");
+            textarea.value = text;
+            textarea.style.position = "fixed";
+            textarea.style.opacity = "0";
+            document.body.appendChild(textarea);
+            textarea.select();
+            try { document.execCommand("copy"); } catch (e) {}
+            document.body.removeChild(textarea);
+        }
+
+        function showToast(message, type = "info") {
+            const container = document.getElementById("toast-container");
+            const toast = document.createElement("div");
+            const bgColors = {
+                success: "bg-emerald-800 text-white border-emerald-700",
+                error: "bg-rose-800 text-white border-rose-700",
+                warning: "bg-amber-800 text-white border-amber-700",
+                info: "bg-slate-800 text-white border-slate-700"
+            };
+            const icons = {
+                success: "fa-circle-check text-emerald-400",
+                error: "fa-circle-xmark text-rose-400",
+                warning: "fa-triangle-exclamation text-amber-400",
+                info: "fa-circle-info text-blue-400"
+            };
+
+            toast.className = `pointer-events-auto px-4 py-3 rounded-xl shadow-xl border text-xs font-medium flex items-center gap-2.5 transition-all duration-300 transform translate-y-2 opacity-0 ${bgColors[type] || bgColors.info}`;
+            toast.innerHTML = `<i class="fa-solid ${icons[type]} text-sm"></i> <span>${escapeHtml(message)}</span>`;
+
+            container.appendChild(toast);
+            requestAnimationFrame(() => toast.classList.remove("translate-y-2", "opacity-0"));
+            setTimeout(() => {
+                toast.classList.add("opacity-0", "translate-y-[-10px]");
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function switchRightTab(tab) {
+            const btnPreview = document.getElementById("tab-btn-preview");
+            const btnJson = document.getElementById("tab-btn-json");
+            const viewPreview = document.getElementById("view-preview");
+            const viewJson = document.getElementById("view-json");
+
+            if (tab === 'preview') {
+                viewPreview.classList.remove("hidden");
+                viewJson.classList.add("hidden");
+                btnPreview.className = "flex-1 py-2 rounded-xl bg-white shadow-sm text-slate-800 text-center transition-all font-semibold";
+                btnJson.className = "flex-1 py-2 rounded-xl text-slate-600 hover:text-slate-900 text-center transition-all";
+            } else {
+                viewPreview.classList.add("hidden");
+                viewJson.classList.remove("hidden");
+                btnJson.className = "flex-1 py-2 rounded-xl bg-white shadow-sm text-slate-800 text-center transition-all font-semibold";
+                btnPreview.className = "flex-1 py-2 rounded-xl text-slate-600 hover:text-slate-900 text-center transition-all";
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        function renderAll() {
+            renderCardEditors();
+            renderPhonePreview();
+        }
+
+        window.onload = function() {
+            renderAll();
+        };
+    </script>
+</body>
+</html>
