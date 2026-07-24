@@ -557,7 +557,8 @@
         }
 
         function buildBubble(card, standalone) {
-            return {
+            const isVideoHero = standalone && card.mediaType === 'video' && !!card.videoUrl;
+            const bubble = {
                 type: "bubble",
                 hero: buildHeroBlock(card, standalone),
                 body: {
@@ -589,6 +590,13 @@
                     contents: (card.buttons && card.buttons.length > 0 ? card.buttons : [{ label: "查看詳情", url: "https://line.me" }]).map((btn, i) => buildButtonBlock(btn, i))
                 }
             };
+            // LINE REQUIRES bubbles with a video hero to explicitly declare
+            // "size": "kilo" | "mega" | "giga" — without it, LINE rejects the
+            // whole message and it silently fails to send.
+            if (isVideoHero) {
+                bubble.size = "mega";
+            }
+            return bubble;
         }
 
         // Generate LINE Flex Message JSON (disabled/"撤下" cards are excluded).
