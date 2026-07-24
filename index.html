@@ -489,9 +489,12 @@
         }
 
         // Build the hero block (image or video) for a single card
-        function buildHeroBlock(card) {
+        // LINE rule: a bubble with a video hero CANNOT be a child of a carousel.
+        // standalone = true  → this card is the ONLY active card, so video is allowed to actually play.
+        // standalone = false → this card is one of several in a carousel, so video falls back to its thumbnail image.
+        function buildHeroBlock(card, standalone) {
             const aspect = state.global.aspectRatio;
-            if (card.mediaType === 'video' && card.videoUrl) {
+            if (card.mediaType === 'video' && card.videoUrl && standalone) {
                 const previewUrl = card.imageUrl || "https://placehold.co/800x520/e2e8f0/64748b?text=No+Preview";
                 return {
                     type: "video",
@@ -508,6 +511,7 @@
                     aspectMode: "cover"
                 };
             }
+            // Image card, OR a video card that had to fall back because it's inside a carousel
             return {
                 type: "image",
                 url: card.imageUrl || "https://placehold.co/800x520/e2e8f0/64748b?text=No+Image",
@@ -517,7 +521,6 @@
             };
         }
 
-        // Generate LINE Flex Carousel Message JSON (disabled/"撤下" cards are excluded)
         // Build a fully custom-colored "button" using a clickable box + text,
         // since LINE's native button component can't set background AND text
         // color independently for every style.
@@ -553,45 +556,63 @@
             };
         }
 
+        function buildBubble(card, standalone) {
+            return {
+                type: "bubble",
+                hero: buildHeroBlock(card, standalone),
+                body: {
+                    type: "box",
+                    layout: "vertical",
+                    contents: [
+                        {
+                            type: "text",
+                            text: card.title || "無標題",
+                            weight: "bold",
+                            size: state.global.titleSize,
+                            wrap: true,
+                            color: "#1e293b"
+                        },
+                        {
+                            type: "text",
+                            text: card.description || "",
+                            size: state.global.descSize,
+                            color: "#64748b",
+                            wrap: true,
+                            margin: "md"
+                        }
+                    ]
+                },
+                footer: {
+                    type: "box",
+                    layout: "vertical",
+                    spacing: "sm",
+                    contents: (card.buttons && card.buttons.length > 0 ? card.buttons : [{ label: "查看詳情", url: "https://line.me" }]).map((btn, i) => buildButtonBlock(btn, i))
+                }
+            };
+        }
+
+        // Generate LINE Flex Message JSON (disabled/"撤下" cards are excluded).
+        // NOTE: LINE does not allow a video hero inside a carousel. So:
+        //  - If there's exactly ONE active card and it's a video → send as a single bubble (video plays normally).
+        //  - Otherwise → send as a carousel; any video card inside falls back to its thumbnail image,
+        //    since LINE would silently drop/reject a video bubble nested in a carousel.
         function generateFlexJson() {
             const activeCards = state.cards.filter(card => card.enabled !== false);
+
+            if (activeCards.length === 1) {
+                return {
+                    type: "flex",
+                    altText: state.global.altText || "數位名片",
+                    contents: buildBubble(activeCards[0], true)
+                };
+            }
+
             return {
                 type: "flex",
                 altText: state.global.altText || "數位名片",
                 contents: {
                     type: "carousel",
-                    contents: activeCards.map(card => ({
-                        type: "bubble",
-                        hero: buildHeroBlock(card),
-                        body: {
-                            type: "box",
-                            layout: "vertical",
-                            contents: [
-                                {
-                                    type: "text",
-                                    text: card.title || "無標題",
-                                    weight: "bold",
-                                    size: state.global.titleSize,
-                                    wrap: true,
-                                    color: "#1e293b"
-                                },
-                                {
-                                    type: "text",
-                                    text: card.description || "",
-                                    size: state.global.descSize,
-                                    color: "#64748b",
-                                    wrap: true,
-                                    margin: "md"
-                                }
-                            ]
-                        },
-                        footer: {
-                            type: "box",
-                            layout: "vertical",
-                            spacing: "sm",
-                            contents: (card.buttons && card.buttons.length > 0 ? card.buttons : [{ label: "查看詳情", url: "https://line.me" }]).map((btn, i) => buildButtonBlock(btn, i))
-                        }
-                    }))
+                    contents: activeCards.map(card => buildBubble(card, false))
                 }
             };
         }
@@ -653,6 +674,16 @@
                                 </button>
                             </div>
                         </div>
+
+                        ${isVideo && enabledCount > 1 ? `
+                        <div class="sm:col-span-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                            <p class="text-[11px] text-amber-800"><i class="fa-solid fa-triangle-exclamation mr-1"></i>
+                                <strong>LINE 限制：</strong>影片只能用在「單獨 1 頁」的名片，不能放在多頁輪播裡。
+                                目前你有 ${enabledCount} 頁同時上架，此頁送出後會<strong>自動改用縮圖顯示、無法播放影片</strong>。
+                                若要讓影片正常播放，請把其他頁面暫時「下架」，只留這一頁。
+                            </p>
+                        </div>
+                        ` : ''}
 
                         ${isVideo ? `
                         <div class="sm:col-span-2">
@@ -801,6 +832,11 @@
                                 <i class="fa-solid fa-play text-slate-800 text-sm ml-0.5"></i>
                             </div>
                         </div>
+                        ${activeCards.length > 1 ? `
+                        <div class="absolute bottom-1 left-1 right-1 bg-amber-500/90 text-white text-[9px] text-center py-1 rounded-md leading-tight">
+                            多頁模式下將顯示縮圖<br>無法播放
+                        </div>
+                        ` : ''}
                         ` : ''}
                     </div>
 
@@ -1065,6 +1101,11 @@
             if (!hasActiveCards) {
                 showToast("目前所有卡片都已下架，請至少啟用一頁後再發送", "warning");
                 return;
+            }
+
+            const activeCardsCheck = state.cards.filter(card => card.enabled !== false);
+            if (activeCardsCheck.length > 1 && activeCardsCheck.some(c => c.mediaType === 'video')) {
+                showToast("提醒：多頁模式下，影片頁面將自動改用縮圖，無法播放", "warning");
             }
 
             const flexJson = generateFlexJson();
