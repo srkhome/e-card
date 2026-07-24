@@ -190,7 +190,7 @@
                 <div class="flex items-center justify-between pb-3 border-b border-slate-100">
                     <div class="flex items-center gap-2">
                         <i class="fa-solid fa-layer-group text-emerald-600"></i>
-                        <h2 class="font-semibold text-slate-800">名片頁數管理 (<span id="card-count-badge">0</span>/10)</h2>
+                        <h2 class="font-semibold text-slate-800">名片頁數管理 (<span id="card-count-badge">0</span>，上限 10 頁)</h2>
                     </div>
                     <button onclick="addNewCard()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition-colors">
                         <i class="fa-solid fa-plus"></i> 新增下一頁卡片
@@ -314,27 +314,39 @@
             cards: [
                 {
                     id: "card_1",
+                    mediaType: "image",
                     imageUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80",
+                    videoUrl: "",
                     title: "Alex Chen | 創辦人",
                     description: "專注於 AI 產品設計與 Web 全棧開發，歡迎聯絡交流與合作！",
-                    btnLabel: "瀏覽個人網站與作品集",
-                    btnUrl: "https://example.com"
+                    enabled: true,
+                    buttons: [
+                        { id: "b1", label: "瀏覽個人網站與作品集", url: "https://example.com" }
+                    ]
                 },
                 {
                     id: "card_2",
+                    mediaType: "image",
                     imageUrl: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800&q=80",
+                    videoUrl: "",
                     title: "核心服務項目",
                     description: "提供 UI/UX 設計、LINE LIFF 微應用開發與企業顧問諮詢。",
-                    btnLabel: "預約線上諮詢時間",
-                    btnUrl: "https://example.com/booking"
+                    enabled: true,
+                    buttons: [
+                        { id: "b1", label: "預約線上諮詢時間", url: "https://example.com/booking" }
+                    ]
                 },
                 {
                     id: "card_3",
+                    mediaType: "image",
                     imageUrl: "https://images.unsplash.com/photo-1423666639041-f56000c27a9a?auto=format&fit=crop&w=800&q=80",
+                    videoUrl: "",
                     title: "聯絡方式",
                     description: "Email: alex@example.com\n電話: 0912-345-678\n地址: 台北市信義區",
-                    btnLabel: "加為 LINE 好友",
-                    btnUrl: "https://line.me"
+                    enabled: true,
+                    buttons: [
+                        { id: "b1", label: "加為 LINE 好友", url: "https://line.me" }
+                    ]
                 }
             ]
         };
@@ -350,19 +362,27 @@
                 cards: [
                     {
                         id: "c1",
+                        mediaType: "image",
                         imageUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=800&q=80",
+                        videoUrl: "",
                         title: "張雅婷 | 資深設計總監",
                         description: "品牌視覺規劃 | 數位產品 UI/UX 設計 | 10年跨國專案經驗",
-                        btnLabel: "線上作品集",
-                        btnUrl: "https://example.com/portfolio"
+                        enabled: true,
+                        buttons: [
+                            { id: "b1", label: "線上作品集", url: "https://example.com/portfolio" }
+                        ]
                     },
                     {
                         id: "c2",
+                        mediaType: "image",
                         imageUrl: "https://images.unsplash.com/photo-1600880292203-757bb62b4baf?auto=format&fit=crop&w=800&q=80",
+                        videoUrl: "",
                         title: "設計服務內容",
                         description: "1. 企業識別 CIS 規劃\n2. App / Web 介面設計\n3. 品牌顧問諮詢",
-                        btnLabel: "預約服務報價",
-                        btnUrl: "https://example.com/pricing"
+                        enabled: true,
+                        buttons: [
+                            { id: "b1", label: "預約服務報價", url: "https://example.com/pricing" }
+                        ]
                     }
                 ]
             },
@@ -371,19 +391,27 @@
                 cards: [
                     {
                         id: "p1",
+                        mediaType: "image",
                         imageUrl: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80",
+                        videoUrl: "",
                         title: "無線降噪耳機 Pro",
                         description: "極致音質與 30 小時超長續航，限時優惠 NT$ 4,280",
-                        btnLabel: "立即下單購買",
-                        btnUrl: "https://example.com/buy/1"
+                        enabled: true,
+                        buttons: [
+                            { id: "b1", label: "立即下單購買", url: "https://example.com/buy/1" }
+                        ]
                     },
                     {
                         id: "p2",
+                        mediaType: "image",
                         imageUrl: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=800&q=80",
+                        videoUrl: "",
                         title: "極簡極致智慧手錶",
                         description: "全天候健康監測與運動追蹤，防水達 50 米",
-                        btnLabel: "查看商品詳情",
-                        btnUrl: "https://example.com/buy/2"
+                        enabled: true,
+                        buttons: [
+                            { id: "b1", label: "查看商品詳情", url: "https://example.com/buy/2" }
+                        ]
                     }
                 ]
             }
@@ -427,22 +455,46 @@
             }
         }
 
-        // Generate LINE Flex Carousel Message JSON
+        // Build the hero block (image or video) for a single card
+        function buildHeroBlock(card) {
+            const aspect = state.global.aspectRatio;
+            if (card.mediaType === 'video' && card.videoUrl) {
+                const previewUrl = card.imageUrl || "https://placehold.co/800x520/e2e8f0/64748b?text=No+Preview";
+                return {
+                    type: "video",
+                    url: card.videoUrl,
+                    previewUrl: previewUrl,
+                    altContent: {
+                        type: "image",
+                        size: "full",
+                        aspectRatio: aspect,
+                        aspectMode: "cover",
+                        url: previewUrl
+                    },
+                    aspectRatio: aspect,
+                    aspectMode: "cover"
+                };
+            }
+            return {
+                type: "image",
+                url: card.imageUrl || "https://placehold.co/800x520/e2e8f0/64748b?text=No+Image",
+                size: "full",
+                aspectRatio: aspect,
+                aspectMode: "cover"
+            };
+        }
+
+        // Generate LINE Flex Carousel Message JSON (disabled/"撤下" cards are excluded)
         function generateFlexJson() {
+            const activeCards = state.cards.filter(card => card.enabled !== false);
             return {
                 type: "flex",
                 altText: state.global.altText || "數位名片",
                 contents: {
                     type: "carousel",
-                    contents: state.cards.map(card => ({
+                    contents: activeCards.map(card => ({
                         type: "bubble",
-                        hero: {
-                            type: "image",
-                            url: card.imageUrl || "https://placehold.co/800x520/e2e8f0/64748b?text=No+Image",
-                            size: "full",
-                            aspectRatio: state.global.aspectRatio,
-                            aspectMode: "cover"
-                        },
+                        hero: buildHeroBlock(card),
                         body: {
                             type: "box",
                             layout: "vertical",
@@ -469,19 +521,17 @@
                             type: "box",
                             layout: "vertical",
                             spacing: "sm",
-                            contents: [
-                                {
-                                    type: "button",
-                                    style: "primary",
-                                    color: "#06C755",
-                                    height: state.global.btnSize,
-                                    action: {
-                                        type: "uri",
-                                        label: card.btnLabel || "查看詳情",
-                                        uri: isValidUrl(card.btnUrl) ? card.btnUrl : "https://line.me"
-                                    }
+                            contents: (card.buttons && card.buttons.length > 0 ? card.buttons : [{ label: "查看詳情", url: "https://line.me" }]).map((btn, i) => ({
+                                type: "button",
+                                style: i === 0 ? "primary" : "secondary",
+                                color: i === 0 ? "#06C755" : undefined,
+                                height: state.global.btnSize,
+                                action: {
+                                    type: "uri",
+                                    label: btn.label || "查看詳情",
+                                    uri: isValidUrl(btn.url) ? btn.url : "https://line.me"
                                 }
-                            ]
+                            }))
                         }
                     }))
                 }
@@ -491,35 +541,83 @@
         // Render Form Controls for Cards
         function renderCardEditors() {
             const container = document.getElementById("cards-editor-container");
-            document.getElementById("card-count-badge").innerText = state.cards.length;
+            const enabledCount = state.cards.filter(c => c.enabled !== false).length;
+            document.getElementById("card-count-badge").innerText = `${enabledCount} 上架 / 共 ${state.cards.length}`;
 
             container.innerHTML = state.cards.map((card, index) => {
                 const imgValid = isValidUrl(card.imageUrl);
-                const urlValid = isValidUrl(card.btnUrl);
+                const vidValid = isValidUrl(card.videoUrl);
+                const buttons = card.buttons && card.buttons.length > 0 ? card.buttons : [];
+                const isEnabled = card.enabled !== false;
+                const isVideo = card.mediaType === 'video';
                 return `
-                <div class="border border-slate-200 rounded-xl p-4 bg-slate-50/50 hover:bg-white transition-all space-y-3">
+                <div class="border ${isEnabled ? 'border-slate-200' : 'border-dashed border-slate-300 bg-slate-100/60'} rounded-xl p-4 ${isEnabled ? 'bg-slate-50/50 hover:bg-white' : ''} transition-all space-y-3">
                     <div class="flex items-center justify-between pb-2 border-b border-slate-200/60">
                         <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                            <span class="w-5 h-5 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[10px]">
+                            <span class="w-5 h-5 rounded-full ${isEnabled ? 'bg-slate-200 text-slate-700' : 'bg-slate-300 text-slate-500'} flex items-center justify-center text-[10px]">
                                 ${index + 1}
                             </span>
                             第 ${index + 1} 頁卡片
+                            ${isEnabled
+                                ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-700">上架中</span>'
+                                : '<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-300 text-slate-600">已下架</span>'}
                         </span>
                         <div class="flex items-center gap-1 text-slate-400">
+                            <button onclick="toggleCardEnabled(${index})" title="${isEnabled ? '快速下架此頁' : '重新上架此頁'}"
+                                class="p-1 ${isEnabled ? 'hover:text-amber-600' : 'hover:text-emerald-600'}">
+                                <i class="fa-solid ${isEnabled ? 'fa-eye-slash' : 'fa-eye'} text-xs"></i>
+                            </button>
                             ${index > 0 ? `<button onclick="moveCard(${index}, -1)" class="p-1 hover:text-slate-700" title="上移"><i class="fa-solid fa-arrow-up text-xs"></i></button>` : ''}
                             ${index < state.cards.length - 1 ? `<button onclick="moveCard(${index}, 1)" class="p-1 hover:text-slate-700" title="下移"><i class="fa-solid fa-arrow-down text-xs"></i></button>` : ''}
                             <button onclick="duplicateCard(${index})" class="p-1 hover:text-emerald-600" title="複製"><i class="fa-regular fa-copy text-xs"></i></button>
-                            <button onclick="deleteCard(${index})" class="p-1 hover:text-rose-600" title="刪除"><i class="fa-solid fa-trash-can text-xs"></i></button>
+                            <button onclick="deleteCard(${index})" class="p-1 hover:text-rose-600" title="永久刪除此頁"><i class="fa-solid fa-trash-can text-xs"></i></button>
                         </div>
                     </div>
 
+                    ${!isEnabled ? `
+                    <div class="flex items-center justify-between gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        <p class="text-[11px] text-amber-800"><i class="fa-solid fa-circle-info mr-1"></i>此頁已下架，不會出現在預覽或發送內容中，資料仍保留。</p>
+                        <button onclick="toggleCardEnabled(${index})" class="shrink-0 px-2.5 py-1 text-[11px] font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg">重新上架</button>
+                    </div>
+                    ` : ''}
+
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div class="sm:col-span-2">
+                            <label class="block font-medium text-slate-600 mb-1">媒體類型</label>
+                            <div class="flex gap-2">
+                                <button type="button" onclick="setCardMediaType(${index}, 'image')"
+                                    class="flex-1 py-1.5 rounded-lg border text-[11px] font-medium transition-colors ${!isVideo ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}">
+                                    <i class="fa-regular fa-image mr-1"></i> 圖片
+                                </button>
+                                <button type="button" onclick="setCardMediaType(${index}, 'video')"
+                                    class="flex-1 py-1.5 rounded-lg border text-[11px] font-medium transition-colors ${isVideo ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}">
+                                    <i class="fa-solid fa-video mr-1"></i> 影片
+                                </button>
+                            </div>
+                        </div>
+
+                        ${isVideo ? `
+                        <div class="sm:col-span-2">
+                            <label class="block font-medium text-slate-600 mb-1">影片網址 (需為 https 開頭的 .mp4 連結)</label>
+                            <input type="text" value="${escapeHtml(card.videoUrl)}" oninput="updateCardField(${index}, 'videoUrl', this.value)"
+                                placeholder="https://.../video.mp4" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none ${card.videoUrl && !vidValid ? 'input-invalid' : ''}">
+                            ${card.videoUrl && !vidValid ? '<p class="text-[10px] text-rose-600 mt-1">網址格式不正確，請確認開頭為 https://</p>' : ''}
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block font-medium text-slate-600 mb-1">影片預覽縮圖網址 (播放前顯示的封面圖)</label>
+                            <input type="text" value="${escapeHtml(card.imageUrl)}" oninput="updateCardField(${index}, 'imageUrl', this.value)"
+                                placeholder="https://.../thumbnail.jpg" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none ${card.imageUrl && !imgValid ? 'input-invalid' : ''}">
+                            ${card.imageUrl && !imgValid ? '<p class="text-[10px] text-rose-600 mt-1">網址格式不正確，請確認開頭為 http:// 或 https://</p>' : ''}
+                        </div>
+                        ` : `
                         <div class="sm:col-span-2">
                             <label class="block font-medium text-slate-600 mb-1">照片網址 (Image URL)</label>
                             <input type="text" value="${escapeHtml(card.imageUrl)}" oninput="updateCardField(${index}, 'imageUrl', this.value)"
                                 placeholder="https://..." class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none ${card.imageUrl && !imgValid ? 'input-invalid' : ''}">
                             ${card.imageUrl && !imgValid ? '<p class="text-[10px] text-rose-600 mt-1">網址格式不正確，請確認開頭為 http:// 或 https://</p>' : ''}
                         </div>
+                        `}
+
                         <div class="sm:col-span-2">
                             <label class="block font-medium text-slate-600 mb-1">卡片標題 / 姓名</label>
                             <input type="text" value="${escapeHtml(card.title)}" oninput="updateCardField(${index}, 'title', this.value)"
@@ -530,16 +628,43 @@
                             <textarea oninput="updateCardField(${index}, 'description', this.value)" rows="2"
                                 placeholder="請輸入介紹內容" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">${escapeHtml(card.description)}</textarea>
                         </div>
-                        <div>
-                            <label class="block font-medium text-slate-600 mb-1">按鈕顯示文字</label>
-                            <input type="text" value="${escapeHtml(card.btnLabel)}" oninput="updateCardField(${index}, 'btnLabel', this.value)"
-                                placeholder="例如: 開啟網站" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+
+                    <div class="pt-2 border-t border-slate-200/60">
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-xs font-semibold text-slate-700">按鈕設定 (<span>${buttons.length}</span>/4)</label>
+                            <button onclick="addButtonToCard(${index})" ${buttons.length >= 4 ? 'disabled' : ''}
+                                class="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-lg transition-colors ${buttons.length >= 4 ? 'text-slate-300 bg-slate-100 cursor-not-allowed' : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200'}">
+                                <i class="fa-solid fa-plus"></i> 新增按鈕
+                            </button>
                         </div>
-                        <div>
-                            <label class="block font-medium text-slate-600 mb-1">按鈕點擊連結 (URL)</label>
-                            <input type="text" value="${escapeHtml(card.btnUrl)}" oninput="updateCardField(${index}, 'btnUrl', this.value)"
-                                placeholder="https://..." class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none ${card.btnUrl && !urlValid ? 'input-invalid' : ''}">
-                            ${card.btnUrl && !urlValid ? '<p class="text-[10px] text-rose-600 mt-1">網址格式不正確，送出時將自動改用預設連結</p>' : ''}
+                        <div class="space-y-2">
+                            ${buttons.map((btn, bIndex) => {
+                                const btnUrlValid = isValidUrl(btn.url);
+                                return `
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2.5 bg-white border border-slate-200 rounded-lg relative">
+                                    <span class="absolute -top-2 -left-2 w-4 h-4 rounded-full bg-slate-700 text-white text-[9px] flex items-center justify-center font-bold">${bIndex + 1}</span>
+                                    <div>
+                                        <label class="block font-medium text-slate-500 mb-1">按鈕 ${bIndex + 1} 顯示文字</label>
+                                        <input type="text" value="${escapeHtml(btn.label)}" oninput="updateButtonField(${index}, ${bIndex}, 'label', this.value)"
+                                            placeholder="例如: 開啟網站" class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                    </div>
+                                    <div class="flex gap-1.5 items-start">
+                                        <div class="flex-1">
+                                            <label class="block font-medium text-slate-500 mb-1">按鈕點擊連結 (URL)</label>
+                                            <input type="text" value="${escapeHtml(btn.url)}" oninput="updateButtonField(${index}, ${bIndex}, 'url', this.value)"
+                                                placeholder="https://..." class="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none ${btn.url && !btnUrlValid ? 'input-invalid' : ''}">
+                                        </div>
+                                        <button onclick="removeButtonFromCard(${index}, ${bIndex})" ${buttons.length <= 1 ? 'disabled' : ''}
+                                            title="刪除此按鈕"
+                                            class="mt-5 p-2 rounded-lg ${buttons.length <= 1 ? 'text-slate-300 cursor-not-allowed' : 'text-rose-500 hover:bg-rose-50'}">
+                                            <i class="fa-solid fa-trash-can text-xs"></i>
+                                        </button>
+                                    </div>
+                                    ${btn.url && !btnUrlValid ? '<p class="sm:col-span-2 text-[10px] text-rose-600">網址格式不正確，送出時將自動改用預設連結</p>' : ''}
+                                </div>
+                            `;
+                            }).join('')}
                         </div>
                     </div>
                 </div>
@@ -562,12 +687,30 @@
             const titleSizes = { md: "text-sm", lg: "text-base", xl: "text-lg", xxl: "text-xl" };
             const descSizes = { xs: "text-[10px]", sm: "text-xs", md: "text-sm" };
 
-            track.innerHTML = state.cards.map(card => `
+            const activeCards = state.cards.filter(card => card.enabled !== false);
+
+            if (activeCards.length === 0) {
+                track.innerHTML = `<div class="w-[240px] bg-white/70 rounded-2xl border border-dashed border-slate-300 flex flex-col items-center justify-center text-center p-6 text-slate-400 text-xs gap-2 shrink-0">
+                    <i class="fa-solid fa-inbox text-xl"></i>
+                    <p>目前所有卡片都已下架，<br>朋友端將看不到任何名片。</p>
+                </div>`;
+                document.getElementById("json-code-block").innerText = JSON.stringify(generateFlexJson(), null, 2);
+                return;
+            }
+
+            track.innerHTML = activeCards.map(card => `
                 <div class="w-[240px] bg-white rounded-2xl overflow-hidden shadow-md border border-slate-100 flex flex-col shrink-0">
                     <div class="w-full ${aspectClass} bg-slate-100 relative overflow-hidden">
                         <img src="${escapeHtml(card.imageUrl)}"
                             onerror="this.onerror=null; this.src='https://placehold.co/800x520/e2e8f0/64748b?text=無圖片';"
                             class="w-full h-full object-cover">
+                        ${card.mediaType === 'video' ? `
+                        <div class="absolute inset-0 flex items-center justify-center bg-black/20">
+                            <div class="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-md">
+                                <i class="fa-solid fa-play text-slate-800 text-sm ml-0.5"></i>
+                            </div>
+                        </div>
+                        ` : ''}
                     </div>
 
                     <div class="p-3.5 flex-1 flex flex-col justify-between">
@@ -580,10 +723,12 @@
                             </p>
                         </div>
 
-                        <div class="mt-4">
-                            <div class="w-full text-center ${state.global.btnSize === 'md' ? 'py-2 text-xs' : 'py-1.5 text-[11px]'} font-semibold text-white bg-line-green rounded-xl shadow-sm">
-                                ${escapeHtml(card.btnLabel) || '詳情'}
-                            </div>
+                        <div class="mt-4 space-y-1.5">
+                            ${(card.buttons && card.buttons.length > 0 ? card.buttons : [{ label: '詳情' }]).map((btn, bIndex) => `
+                                <div class="w-full text-center ${state.global.btnSize === 'md' ? 'py-2 text-xs' : 'py-1.5 text-[11px]'} font-semibold rounded-xl shadow-sm ${bIndex === 0 ? 'text-white bg-line-green' : 'text-line-green bg-white border border-line-green'}">
+                                    ${escapeHtml(btn.label) || '詳情'}
+                                </div>
+                            `).join('')}
                         </div>
                     </div>
                 </div>
@@ -607,9 +752,71 @@
             renderPhonePreview();
             saveStateToLocalStorage();
             // Re-render editors only for URL fields, so the live invalid-url hint stays in sync
-            if (field === 'imageUrl' || field === 'btnUrl') {
+            if (field === 'imageUrl' || field === 'videoUrl') {
                 renderCardEditorsDebounced();
             }
+        }
+
+        // Quickly "take down" or restore a page without deleting its data
+        function toggleCardEnabled(index) {
+            const card = state.cards[index];
+            card.enabled = card.enabled === false ? true : false;
+            renderCardEditors();
+            renderPhonePreview();
+            saveStateToLocalStorage();
+            showToast(card.enabled ? `第 ${index + 1} 頁已重新上架` : `第 ${index + 1} 頁已下架`, card.enabled ? "success" : "info");
+        }
+
+        function setCardMediaType(index, type) {
+            state.cards[index].mediaType = type;
+            if (type === 'video' && state.cards[index].videoUrl === undefined) {
+                state.cards[index].videoUrl = "";
+            }
+            renderCardEditors();
+            renderPhonePreview();
+            saveStateToLocalStorage();
+        }
+
+        function updateButtonField(cardIndex, btnIndex, field, value) {
+            if (!state.cards[cardIndex].buttons) state.cards[cardIndex].buttons = [];
+            state.cards[cardIndex].buttons[btnIndex][field] = value;
+            renderPhonePreview();
+            saveStateToLocalStorage();
+            // Re-render editors for URL changes, so the live invalid-url hint stays in sync
+            if (field === 'url') {
+                renderCardEditorsDebounced();
+            }
+        }
+
+        function addButtonToCard(cardIndex) {
+            const card = state.cards[cardIndex];
+            if (!card.buttons) card.buttons = [];
+            if (card.buttons.length >= 4) {
+                showToast("每頁卡片最多只能設定 4 個按鈕", "warning");
+                return;
+            }
+            card.buttons.push({
+                id: "btn_" + Date.now(),
+                label: "了解詳情",
+                url: "https://example.com"
+            });
+            renderCardEditors();
+            renderPhonePreview();
+            saveStateToLocalStorage();
+            showToast("已新增按鈕", "success");
+        }
+
+        function removeButtonFromCard(cardIndex, btnIndex) {
+            const card = state.cards[cardIndex];
+            if (!card.buttons || card.buttons.length <= 1) {
+                showToast("每頁卡片至少需保留 1 個按鈕", "warning");
+                return;
+            }
+            card.buttons.splice(btnIndex, 1);
+            renderCardEditors();
+            renderPhonePreview();
+            saveStateToLocalStorage();
+            showToast("已刪除按鈕", "info");
         }
 
         // Debounce the (heavier) editor re-render so typing in a URL field doesn't
@@ -627,11 +834,15 @@
             }
             state.cards.push({
                 id: "card_" + Date.now(),
+                mediaType: "image",
                 imageUrl: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=800&q=80",
+                videoUrl: "",
                 title: "新名片頁面",
                 description: "請填寫此頁面的詳細說明或內容介紹",
-                btnLabel: "了解詳情",
-                btnUrl: "https://example.com"
+                enabled: true,
+                buttons: [
+                    { id: "btn_" + Date.now(), label: "了解詳情", url: "https://example.com" }
+                ]
             });
             renderAll();
             saveStateToLocalStorage();
@@ -745,6 +956,12 @@
 
         // Main Send Function for End-Users
         async function sendCardToLineFriends() {
+            const hasActiveCards = state.cards.some(card => card.enabled !== false);
+            if (!hasActiveCards) {
+                showToast("目前所有卡片都已下架，請至少啟用一頁後再發送", "warning");
+                return;
+            }
+
             const flexJson = generateFlexJson();
 
             // Wait for the background auto-check if it hasn't finished yet
@@ -813,6 +1030,10 @@
         }
 
         function copyGeneratedJson() {
+            const hasActiveCards = state.cards.some(card => card.enabled !== false);
+            if (!hasActiveCards) {
+                showToast("目前所有卡片都已下架，複製出的 JSON 將沒有任何卡片內容", "warning");
+            }
             copyToClipboard(JSON.stringify(generateFlexJson(), null, 2));
             showToast("已複製 Flex JSON 至剪貼簿！", "success");
         }
