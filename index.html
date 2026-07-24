@@ -455,6 +455,39 @@
             }
         }
 
+        // ---------------------------------------------------------
+        // Color contrast helpers — warn (don't block) if a button's
+        // text/background combo would be hard to read.
+        // ---------------------------------------------------------
+        function isValidHexColor(str) {
+            return typeof str === 'string' && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(str);
+        }
+
+        function hexToRgb(hex) {
+            let h = hex.replace('#', '');
+            if (h.length === 3) h = h.split('').map(c => c + c).join('');
+            const num = parseInt(h, 16);
+            return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+        }
+
+        function relativeLuminance(hex) {
+            const { r, g, b } = hexToRgb(hex);
+            const [rs, gs, bs] = [r, g, b].map(v => {
+                const c = v / 255;
+                return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+            });
+            return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+        }
+
+        function contrastRatio(hex1, hex2) {
+            if (!isValidHexColor(hex1) || !isValidHexColor(hex2)) return null;
+            const l1 = relativeLuminance(hex1);
+            const l2 = relativeLuminance(hex2);
+            const lighter = Math.max(l1, l2);
+            const darker = Math.min(l1, l2);
+            return (lighter + 0.05) / (darker + 0.05);
+        }
+
         // Build the hero block (image or video) for a single card
         function buildHeroBlock(card) {
             const aspect = state.global.aspectRatio;
@@ -485,6 +518,41 @@
         }
 
         // Generate LINE Flex Carousel Message JSON (disabled/"撤下" cards are excluded)
+        // Build a fully custom-colored "button" using a clickable box + text,
+        // since LINE's native button component can't set background AND text
+        // color independently for every style.
+        function buildButtonBlock(btn, index) {
+            const bg = btn.bgColor || (index === 0 ? "#06C755" : "#FFFFFF");
+            const text = btn.textColor || (index === 0 ? "#FFFFFF" : "#06C755");
+            const heightPx = state.global.btnSize === 'md' ? "44px" : "36px";
+            return {
+                type: "box",
+                layout: "vertical",
+                height: heightPx,
+                cornerRadius: "8px",
+                backgroundColor: bg,
+                borderColor: text,
+                borderWidth: "light",
+                justifyContent: "center",
+                alignItems: "center",
+                action: {
+                    type: "uri",
+                    label: btn.label || "查看詳情",
+                    uri: isValidUrl(btn.url) ? btn.url : "https://line.me"
+                },
+                contents: [
+                    {
+                        type: "text",
+                        text: btn.label || "查看詳情",
+                        color: text,
+                        size: "sm",
+                        weight: "bold",
+                        align: "center"
+                    }
+                ]
+            };
+        }
+
         function generateFlexJson() {
             const activeCards = state.cards.filter(card => card.enabled !== false);
             return {
@@ -521,17 +589,7 @@
                             type: "box",
                             layout: "vertical",
                             spacing: "sm",
-                            contents: (card.buttons && card.buttons.length > 0 ? card.buttons : [{ label: "查看詳情", url: "https://line.me" }]).map((btn, i) => ({
-                                type: "button",
-                                style: i === 0 ? "primary" : "secondary",
-                                color: i === 0 ? "#06C755" : undefined,
-                                height: state.global.btnSize,
-                                action: {
-                                    type: "uri",
-                                    label: btn.label || "查看詳情",
-                                    uri: isValidUrl(btn.url) ? btn.url : "https://line.me"
-                                }
-                            }))
+                            contents: (card.buttons && card.buttons.length > 0 ? card.buttons : [{ label: "查看詳情", url: "https://line.me" }]).map((btn, i) => buildButtonBlock(btn, i))
                         }
                     }))
                 }
@@ -641,6 +699,10 @@
                         <div class="space-y-2">
                             ${buttons.map((btn, bIndex) => {
                                 const btnUrlValid = isValidUrl(btn.url);
+                                const bg = btn.bgColor || (bIndex === 0 ? "#06C755" : "#FFFFFF");
+                                const txt = btn.textColor || (bIndex === 0 ? "#FFFFFF" : "#06C755");
+                                const ratio = contrastRatio(bg, txt);
+                                const lowContrast = ratio !== null && ratio < 3;
                                 return `
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2.5 bg-white border border-slate-200 rounded-lg relative">
                                     <span class="absolute -top-2 -left-2 w-4 h-4 rounded-full bg-slate-700 text-white text-[9px] flex items-center justify-center font-bold">${bIndex + 1}</span>
@@ -662,6 +724,35 @@
                                         </button>
                                     </div>
                                     ${btn.url && !btnUrlValid ? '<p class="sm:col-span-2 text-[10px] text-rose-600">網址格式不正確，送出時將自動改用預設連結</p>' : ''}
+
+                                    <div class="sm:col-span-2 pt-2 mt-1 border-t border-slate-100 flex flex-wrap items-end gap-3">
+                                        <div>
+                                            <label class="block font-medium text-slate-500 mb-1">背景顏色</label>
+                                            <div class="flex items-center gap-1.5">
+                                                <input type="color" value="${bg}" oninput="updateButtonField(${index}, ${bIndex}, 'bgColor', this.value)"
+                                                    class="w-8 h-8 p-0 border border-slate-200 rounded cursor-pointer">
+                                                <input type="text" value="${bg}" oninput="updateButtonField(${index}, ${bIndex}, 'bgColor', this.value)"
+                                                    class="w-20 px-1.5 py-1 text-[10px] font-mono bg-slate-50 border border-slate-200 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="block font-medium text-slate-500 mb-1">文字顏色</label>
+                                            <div class="flex items-center gap-1.5">
+                                                <input type="color" value="${txt}" oninput="updateButtonField(${index}, ${bIndex}, 'textColor', this.value)"
+                                                    class="w-8 h-8 p-0 border border-slate-200 rounded cursor-pointer">
+                                                <input type="text" value="${txt}" oninput="updateButtonField(${index}, ${bIndex}, 'textColor', this.value)"
+                                                    class="w-20 px-1.5 py-1 text-[10px] font-mono bg-slate-50 border border-slate-200 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-1 pb-1">
+                                            ${['#06C755', '#000000', '#FFFFFF', '#2D8CFF', '#FF334B', '#FF9900'].map(swatch => `
+                                                <button type="button" onclick="updateButtonField(${index}, ${bIndex}, 'bgColor', '${swatch}')" title="套用為背景色 ${swatch}"
+                                                    class="w-5 h-5 rounded-full border border-slate-300" style="background:${swatch}"></button>
+                                            `).join('')}
+                                        </div>
+                                        <button type="button" onclick="resetButtonColor(${index}, ${bIndex})" class="text-[10px] text-slate-400 hover:text-slate-600 underline pb-1.5">還原預設配色</button>
+                                        ${lowContrast ? '<p class="sm:col-span-2 w-full text-[10px] text-amber-600"><i class="fa-solid fa-triangle-exclamation mr-1"></i>背景與文字顏色對比較低，可能不易閱讀</p>' : ''}
+                                    </div>
                                 </div>
                             `;
                             }).join('')}
@@ -724,11 +815,15 @@
                         </div>
 
                         <div class="mt-4 space-y-1.5">
-                            ${(card.buttons && card.buttons.length > 0 ? card.buttons : [{ label: '詳情' }]).map((btn, bIndex) => `
-                                <div class="w-full text-center ${state.global.btnSize === 'md' ? 'py-2 text-xs' : 'py-1.5 text-[11px]'} font-semibold rounded-xl shadow-sm ${bIndex === 0 ? 'text-white bg-line-green' : 'text-line-green bg-white border border-line-green'}">
+                            ${(card.buttons && card.buttons.length > 0 ? card.buttons : [{ label: '詳情' }]).map((btn, bIndex) => {
+                                const bg = btn.bgColor || (bIndex === 0 ? "#06C755" : "#FFFFFF");
+                                const txt = btn.textColor || (bIndex === 0 ? "#FFFFFF" : "#06C755");
+                                return `
+                                <div class="w-full text-center ${state.global.btnSize === 'md' ? 'py-2 text-xs' : 'py-1.5 text-[11px]'} font-semibold rounded-xl shadow-sm" style="background-color:${bg}; color:${txt}; border:1px solid ${txt};">
                                     ${escapeHtml(btn.label) || '詳情'}
                                 </div>
-                            `).join('')}
+                            `;
+                            }).join('')}
                         </div>
                     </div>
                 </div>
@@ -782,10 +877,20 @@
             state.cards[cardIndex].buttons[btnIndex][field] = value;
             renderPhonePreview();
             saveStateToLocalStorage();
-            // Re-render editors for URL changes, so the live invalid-url hint stays in sync
-            if (field === 'url') {
+            // Re-render editors for URL/color changes, so hints & swatches stay in sync
+            if (field === 'url' || field === 'bgColor' || field === 'textColor') {
                 renderCardEditorsDebounced();
             }
+        }
+
+        function resetButtonColor(cardIndex, btnIndex) {
+            const btn = state.cards[cardIndex].buttons[btnIndex];
+            delete btn.bgColor;
+            delete btn.textColor;
+            renderCardEditors();
+            renderPhonePreview();
+            saveStateToLocalStorage();
+            showToast("已還原預設配色", "info");
         }
 
         function addButtonToCard(cardIndex) {
