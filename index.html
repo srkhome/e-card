@@ -142,6 +142,14 @@
                             class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none">
                     </div>
 
+                    <!-- Video Experience LIFF URL -->
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-medium text-slate-600 mb-1">影音體驗頁 LIFF 網址 (影片卡片縮圖點擊後開啟的沉浸式播放頁)</label>
+                        <input type="text" id="global-video-liff-url" oninput="updateStateFromUI()" placeholder="https://liff.line.me/xxxxxxxxxx-xxxxxxxx"
+                            class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none">
+                        <p class="text-[10px] text-slate-400 mt-1">留空的話，影片會改用 LINE 原生影片格式（有較多限制，僅單頁可播放）。<strong>⚠️ 這裡預設帶入的是站長本人的 LIFF 網址，若您不是站長本人、要用在自己的 LINE 帳號上，請務必申請自己專屬的 LIFF App 並換成自己的網址，否則好友點擊影片時會看到「透過站長帳號授權」的畫面。</strong></p>
+                    </div>
+
                     <!-- Image Aspect Ratio -->
                     <div>
                         <label class="block text-xs font-medium text-slate-600 mb-1">圖片長寬比</label>
@@ -302,6 +310,9 @@
         // -------------------------------------------------------------
         const DEFAULT_LIFF_ID = "2010822462-iHFyK9VM";
         const STORAGE_KEY = "line_flex_card_generator_state_v1";
+        // 影音體驗頁的 LIFF 連結：影片卡片縮圖被點擊時，會開啟這個沉浸式播放頁
+        // 留空的話，會改用 LINE 原生影片元件（有輪播/格式限制，較不穩定）
+        const DEFAULT_VIDEO_LIFF_URL = "https://liff.line.me/2010822462-ekOD0fZ7";
 
         let state = {
             global: {
@@ -309,7 +320,8 @@
                 aspectRatio: "20:13",
                 btnSize: "sm",
                 titleSize: "xl",
-                descSize: "sm"
+                descSize: "sm",
+                videoLiffUrl: DEFAULT_VIDEO_LIFF_URL
             },
             cards: [
                 {
@@ -492,26 +504,67 @@
         // LINE rule: a bubble with a video hero CANNOT be a child of a carousel.
         // standalone = true  → this card is the ONLY active card, so video is allowed to actually play.
         // standalone = false → this card is one of several in a carousel, so video falls back to its thumbnail image.
+        // Build the deep-link URL to the immersive video-experience LIFF page,
+        // passing along the video, its thumbnail, title/description, and up to
+        // 3 of the card's own buttons as call-to-action links on that page.
+        function buildVideoDeepLink(card) {
+            const base = state.global.videoLiffUrl;
+            const params = new URLSearchParams();
+            params.set("video", card.videoUrl || "");
+            params.set("poster", card.imageUrl || "");
+            params.set("title", card.title || "");
+            params.set("desc", card.description || "");
+            (card.buttons || []).slice(0, 3).forEach((btn, i) => {
+                params.set(`link${i + 1}_label`, btn.label || "");
+                params.set(`link${i + 1}_url`, isValidUrl(btn.url) ? btn.url : "https://line.me");
+            });
+            const sep = base.includes('?') ? '&' : '?';
+            return base + sep + params.toString();
+        }
+
         function buildHeroBlock(card, standalone) {
             const aspect = state.global.aspectRatio;
-            if (card.mediaType === 'video' && card.videoUrl && standalone) {
-                const previewUrl = card.imageUrl || "https://placehold.co/800x520/e2e8f0/64748b?text=No+Preview";
-                return {
-                    type: "video",
-                    url: card.videoUrl,
-                    previewUrl: previewUrl,
-                    altContent: {
+            const hasVideoLiff = isValidUrl(state.global.videoLiffUrl);
+
+            if (card.mediaType === 'video' && card.videoUrl) {
+                if (hasVideoLiff) {
+                    // Preferred path: hero is a plain (carousel-safe) image whose
+                    // thumbnail, tapped, opens the immersive LIFF video page.
+                    return {
                         type: "image",
+                        url: card.imageUrl || "https://placehold.co/800x520/e2e8f0/64748b?text=No+Preview",
                         size: "full",
                         aspectRatio: aspect,
                         aspectMode: "cover",
-                        url: previewUrl
-                    },
-                    aspectRatio: aspect,
-                    aspectMode: "cover"
-                };
+                        action: {
+                            type: "uri",
+                            label: "播放影片",
+                            uri: buildVideoDeepLink(card)
+                        }
+                    };
+                }
+                if (standalone) {
+                    // Fallback: LINE's native video hero. Only valid as a single,
+                    // non-carousel bubble — see buildBubble()'s "size" handling below.
+                    const previewUrl = card.imageUrl || "https://placehold.co/800x520/e2e8f0/64748b?text=No+Preview";
+                    return {
+                        type: "video",
+                        url: card.videoUrl,
+                        previewUrl: previewUrl,
+                        altContent: {
+                            type: "image",
+                            size: "full",
+                            aspectRatio: aspect,
+                            aspectMode: "cover",
+                            url: previewUrl
+                        },
+                        aspectRatio: aspect,
+                        aspectMode: "cover"
+                    };
+                }
             }
-            // Image card, OR a video card that had to fall back because it's inside a carousel
+            // Image card, OR a video card that had to fall back because it's inside
+            // a carousel AND no videoLiffUrl is configured
             return {
                 type: "image",
                 url: card.imageUrl || "https://placehold.co/800x520/e2e8f0/64748b?text=No+Image",
@@ -557,7 +610,7 @@
         }
 
         function buildBubble(card, standalone) {
-            const isVideoHero = standalone && card.mediaType === 'video' && !!card.videoUrl;
+            const usesNativeVideoHero = standalone && card.mediaType === 'video' && !!card.videoUrl && !isValidUrl(state.global.videoLiffUrl);
             const bubble = {
                 type: "bubble",
                 hero: buildHeroBlock(card, standalone),
@@ -590,24 +643,26 @@
                     contents: (card.buttons && card.buttons.length > 0 ? card.buttons : [{ label: "查看詳情", url: "https://line.me" }]).map((btn, i) => buildButtonBlock(btn, i))
                 }
             };
-            // LINE REQUIRES bubbles with a video hero to explicitly declare
-            // "size": "kilo" | "mega" | "giga" — without it, LINE rejects the
-            // whole message and it silently fails to send.
-            if (isVideoHero) {
+            // LINE REQUIRES bubbles using the native video hero to explicitly declare
+            // "size": "kilo" | "mega" | "giga" — without it, LINE rejects the whole
+            // message and it silently fails to send. Not needed for the image+LIFF-link path.
+            if (usesNativeVideoHero) {
                 bubble.size = "mega";
             }
             return bubble;
         }
 
         // Generate LINE Flex Message JSON (disabled/"撤下" cards are excluded).
-        // NOTE: LINE does not allow a video hero inside a carousel. So:
-        //  - If there's exactly ONE active card and it's a video → send as a single bubble (video plays normally).
-        //  - Otherwise → send as a carousel; any video card inside falls back to its thumbnail image,
-        //    since LINE would silently drop/reject a video bubble nested in a carousel.
+        //  - Preferred path (videoLiffUrl configured): every card's hero is a plain
+        //    image, so multi-page carousels work normally even with video cards mixed in.
+        //  - Fallback path (no videoLiffUrl): LINE doesn't allow a video hero inside a
+        //    carousel, so a single active video card is sent as its own bubble (video
+        //    plays), and video cards mixed into a multi-page carousel fall back to a thumbnail.
         function generateFlexJson() {
             const activeCards = state.cards.filter(card => card.enabled !== false);
+            const hasVideoLiff = isValidUrl(state.global.videoLiffUrl);
 
-            if (activeCards.length === 1) {
+            if (activeCards.length === 1 && !hasVideoLiff) {
                 return {
                     type: "flex",
                     altText: state.global.altText || "數位名片",
@@ -620,7 +675,7 @@
                 altText: state.global.altText || "數位名片",
                 contents: {
                     type: "carousel",
-                    contents: activeCards.map(card => buildBubble(card, false))
+                    contents: activeCards.map(card => buildBubble(card, activeCards.length === 1))
                 }
             };
         }
@@ -629,6 +684,7 @@
         function renderCardEditors() {
             const container = document.getElementById("cards-editor-container");
             const enabledCount = state.cards.filter(c => c.enabled !== false).length;
+            const hasVideoLiff = isValidUrl(state.global.videoLiffUrl);
             document.getElementById("card-count-badge").innerText = `${enabledCount} 上架 / 共 ${state.cards.length}`;
 
             container.innerHTML = state.cards.map((card, index) => {
@@ -683,12 +739,19 @@
                             </div>
                         </div>
 
-                        ${isVideo && enabledCount > 1 ? `
+                        ${isVideo && hasVideoLiff ? `
+                        <div class="sm:col-span-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                            <p class="text-[11px] text-emerald-800"><i class="fa-solid fa-circle-play mr-1"></i>
+                                好友點擊這頁的縮圖時，會開啟沉浸式影音頁播放此影片。這頁本身可以安心跟其他頁面一起做成多頁輪播。
+                            </p>
+                        </div>
+                        ` : ''}
+                        ${isVideo && !hasVideoLiff && enabledCount > 1 ? `
                         <div class="sm:col-span-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                             <p class="text-[11px] text-amber-800"><i class="fa-solid fa-triangle-exclamation mr-1"></i>
-                                <strong>LINE 限制：</strong>影片只能用在「單獨 1 頁」的名片，不能放在多頁輪播裡。
+                                <strong>LINE 限制：</strong>未設定「影音體驗頁網址」時，影片只能用在「單獨 1 頁」的名片，不能放在多頁輪播裡。
                                 目前你有 ${enabledCount} 頁同時上架，此頁送出後會<strong>自動改用縮圖顯示、無法播放影片</strong>。
-                                若要讓影片正常播放，請把其他頁面暫時「下架」，只留這一頁。
+                                建議到上方「卡片視覺風格與長寬設定」填入影音體驗頁網址，即可支援多頁同時播放影片。
                             </p>
                         </div>
                         ` : ''}
@@ -699,12 +762,14 @@
                             <input type="text" value="${escapeHtml(card.videoUrl)}" oninput="updateCardField(${index}, 'videoUrl', this.value)"
                                 placeholder="https://.../video.mp4" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none ${card.videoUrl && !vidValid ? 'input-invalid' : ''}">
                             ${card.videoUrl && !vidValid ? '<p class="text-[10px] text-rose-600 mt-1">網址格式不正確，請確認開頭為 https://</p>' : ''}
+                            <p class="text-[10px] text-slate-400 mt-1">⚠️ 請用可直接下載檔案的空間（GitHub Pages、Firebase Storage、Supabase 等）。<strong>Google Drive／Dropbox 分享連結無法使用</strong>，那是預覽網頁不是檔案本身。</p>
                         </div>
                         <div class="sm:col-span-2">
                             <label class="block font-medium text-slate-600 mb-1">影片預覽縮圖網址 (播放前顯示的封面圖)</label>
                             <input type="text" value="${escapeHtml(card.imageUrl)}" oninput="updateCardField(${index}, 'imageUrl', this.value)"
                                 placeholder="https://.../thumbnail.jpg" class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none ${card.imageUrl && !imgValid ? 'input-invalid' : ''}">
                             ${card.imageUrl && !imgValid ? '<p class="text-[10px] text-rose-600 mt-1">網址格式不正確，請確認開頭為 http:// 或 https://</p>' : ''}
+                            <p class="text-[10px] text-slate-400 mt-1">✅ 可用 Imgur、Cloudinary 等圖床直連圖片。用 Imgur 的話網址要長這樣：<code class="bg-slate-100 px-1 rounded">i.imgur.com/xxxx.jpg</code>（開頭要有 <strong>i.</strong>），不要用 <code class="bg-slate-100 px-1 rounded">imgur.com/xxxx</code> 這種預覽頁連結。</p>
                         </div>
                         ` : `
                         <div class="sm:col-span-2">
@@ -712,6 +777,7 @@
                             <input type="text" value="${escapeHtml(card.imageUrl)}" oninput="updateCardField(${index}, 'imageUrl', this.value)"
                                 placeholder="https://..." class="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none ${card.imageUrl && !imgValid ? 'input-invalid' : ''}">
                             ${card.imageUrl && !imgValid ? '<p class="text-[10px] text-rose-600 mt-1">網址格式不正確，請確認開頭為 http:// 或 https://</p>' : ''}
+                            <p class="text-[10px] text-slate-400 mt-1">✅ 可用 Imgur、Cloudinary 等圖床直連圖片。用 Imgur 的話網址要長這樣：<code class="bg-slate-100 px-1 rounded">i.imgur.com/xxxx.jpg</code>（開頭要有 <strong>i.</strong>）。❌ Google Drive／Dropbox 的分享連結無法使用。</p>
                         </div>
                         `}
 
@@ -828,6 +894,8 @@
                 return;
             }
 
+            const hasVideoLiff = isValidUrl(state.global.videoLiffUrl);
+
             track.innerHTML = activeCards.map(card => `
                 <div class="w-[240px] bg-white rounded-2xl overflow-hidden shadow-md border border-slate-100 flex flex-col shrink-0">
                     <div class="w-full ${aspectClass} bg-slate-100 relative overflow-hidden">
@@ -840,9 +908,14 @@
                                 <i class="fa-solid fa-play text-slate-800 text-sm ml-0.5"></i>
                             </div>
                         </div>
-                        ${activeCards.length > 1 ? `
+                        ${!hasVideoLiff && activeCards.length > 1 ? `
                         <div class="absolute bottom-1 left-1 right-1 bg-amber-500/90 text-white text-[9px] text-center py-1 rounded-md leading-tight">
                             多頁模式下將顯示縮圖<br>無法播放
+                        </div>
+                        ` : ''}
+                        ${hasVideoLiff ? `
+                        <div class="absolute bottom-1 left-1 right-1 bg-emerald-600/90 text-white text-[9px] text-center py-1 rounded-md leading-tight">
+                            點擊開啟沉浸式影音頁
                         </div>
                         ` : ''}
                         ` : ''}
@@ -878,11 +951,13 @@
 
         function updateStateFromUI() {
             state.global.altText = document.getElementById("global-alt-text").value;
+            state.global.videoLiffUrl = document.getElementById("global-video-liff-url").value.trim();
             state.global.aspectRatio = document.getElementById("global-aspect-ratio").value;
             state.global.btnSize = document.getElementById("global-btn-size").value;
             state.global.titleSize = document.getElementById("global-title-size").value;
             state.global.descSize = document.getElementById("global-desc-size").value;
             renderPhonePreview();
+            renderCardEditors();
             saveStateToLocalStorage();
         }
 
@@ -1035,7 +1110,9 @@
         function loadSampleData(type) {
             if (samples[type]) {
                 state = JSON.parse(JSON.stringify(samples[type]));
+                if (!state.global.videoLiffUrl) state.global.videoLiffUrl = DEFAULT_VIDEO_LIFF_URL;
                 document.getElementById("global-alt-text").value = state.global.altText;
+                document.getElementById("global-video-liff-url").value = state.global.videoLiffUrl;
                 document.getElementById("global-aspect-ratio").value = state.global.aspectRatio;
                 document.getElementById("global-btn-size").value = state.global.btnSize;
                 document.getElementById("global-title-size").value = state.global.titleSize;
@@ -1112,7 +1189,7 @@
             }
 
             const activeCardsCheck = state.cards.filter(card => card.enabled !== false);
-            if (activeCardsCheck.length > 1 && activeCardsCheck.some(c => c.mediaType === 'video')) {
+            if (!isValidUrl(state.global.videoLiffUrl) && activeCardsCheck.length > 1 && activeCardsCheck.some(c => c.mediaType === 'video')) {
                 showToast("提醒：多頁模式下，影片頁面將自動改用縮圖，無法播放", "warning");
             }
 
@@ -1292,11 +1369,15 @@
             // Restore any previously saved edits (e.g. after a liff.login() redirect)
             const restored = loadStateFromLocalStorage();
             if (restored) {
+                if (!state.global.videoLiffUrl) state.global.videoLiffUrl = DEFAULT_VIDEO_LIFF_URL;
                 document.getElementById("global-alt-text").value = state.global.altText;
+                document.getElementById("global-video-liff-url").value = state.global.videoLiffUrl;
                 document.getElementById("global-aspect-ratio").value = state.global.aspectRatio;
                 document.getElementById("global-btn-size").value = state.global.btnSize;
                 document.getElementById("global-title-size").value = state.global.titleSize;
                 document.getElementById("global-desc-size").value = state.global.descSize;
+            } else {
+                document.getElementById("global-video-liff-url").value = state.global.videoLiffUrl;
             }
             renderAll();
             // Kick off the real LIFF status check in the background
