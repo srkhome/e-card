@@ -888,7 +888,7 @@
                                         </div>
                                         <div class="flex items-center gap-1 pb-1">
                                             ${['#06C755', '#000000', '#FFFFFF', '#2D8CFF', '#FF334B', '#FF9900'].map(swatch => `
-                                                <button type="button" onclick="updateButtonField(${index}, ${bIndex}, 'bgColor', '${swatch}')" title="套用為背景色 ${swatch}"
+                                                <button type="button" onclick="applySwatchColor(${index}, ${bIndex}, '${swatch}')" title="套用配色（背景 ${swatch} + 自動搭配文字色）"
                                                     class="w-5 h-5 rounded-full border border-slate-300" style="background:${swatch}"></button>
                                             `).join('')}
                                         </div>
@@ -1037,6 +1037,26 @@
             if (field === 'url' || field === 'bgColor' || field === 'textColor') {
                 renderCardEditorsDebounced();
             }
+        }
+
+        // Given a background hex color, pick a readable text color (pure white or black)
+        function getAutoContrastTextColor(bgHex) {
+            try {
+                return relativeLuminance(bgHex) > 0.5 ? "#000000" : "#FFFFFF";
+            } catch (e) {
+                return "#FFFFFF";
+            }
+        }
+
+        // Quick color swatch: sets BOTH the background AND an auto-picked,
+        // readable text color in one click — no need to separately configure text color.
+        function applySwatchColor(cardIndex, btnIndex, bgColor) {
+            const btn = state.cards[cardIndex].buttons[btnIndex];
+            btn.bgColor = bgColor;
+            btn.textColor = getAutoContrastTextColor(bgColor);
+            renderCardEditors();
+            renderPhonePreview();
+            saveStateToLocalStorage();
         }
 
         function resetButtonColor(cardIndex, btnIndex) {
