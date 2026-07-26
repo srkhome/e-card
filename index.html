@@ -326,23 +326,23 @@
             cards: [
                 {
                     id: "card_1",
-                    mediaType: "image",
-                    imageUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80",
-                    videoUrl: "",
-                    title: "Alex Chen | 創辦人",
-                    description: "專注於 AI 產品設計與 Web 全棧開發，歡迎聯絡交流與合作！",
+                    mediaType: "video",
+                    imageUrl: "https://res.cloudinary.com/c9qqljsk/image/upload/v1784883189/S__73146404_xwrc33.jpg",
+                    videoUrl: "https://srkhome.github.io/photodata/76297416.mp4",
+                    title: "A 影片 - 範例第 1 頁",
+                    description: "這是示範用的第 1 頁，媒體類型設為「影片」。imageUrl 是播放前的縮圖，videoUrl 是實際影片網址，兩個都要換成你自己的 A 影片素材。",
                     enabled: true,
                     buttons: [
-                        { id: "b1", label: "瀏覽個人網站與作品集", url: "https://example.com" }
+                        { id: "b1", label: "了解更多", url: "https://example.com" }
                     ]
                 },
                 {
                     id: "card_2",
-                    mediaType: "image",
+                    mediaType: "video",
                     imageUrl: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800&q=80",
                     videoUrl: "",
-                    title: "核心服務項目",
-                    description: "提供 UI/UX 設計、LINE LIFF 微應用開發與企業顧問諮詢。",
+                    title: "B 影片 - 範例第 2 頁",
+                    description: "這是示範用的第 2 頁，跟第 1 頁一樣選「影片」。下方「影片網址」目前是空的，請填入你的 B 影片網址與縮圖，兩頁可以同時上架、互不影響。",
                     enabled: true,
                     buttons: [
                         { id: "b1", label: "預約線上諮詢時間", url: "https://example.com/booking" }
@@ -504,22 +504,59 @@
         // LINE rule: a bubble with a video hero CANNOT be a child of a carousel.
         // standalone = true  → this card is the ONLY active card, so video is allowed to actually play.
         // standalone = false → this card is one of several in a carousel, so video falls back to its thumbnail image.
-        // Build the deep-link URL to the immersive video-experience LIFF page,
-        // passing along the video, its thumbnail, title/description, and up to
-        // 3 of the card's own buttons as call-to-action links on that page.
+        // Build the deep-link URL to the immersive video-experience LIFF page.
+        // LINE's URI action has a hard 1000-character limit — if the card's title,
+        // description, and button links push the URL past that, LINE silently
+        // rejects the ENTIRE message. So we build it, check the length, and if
+        // it's too long, progressively trim the least essential parts (extra
+        // button links, then the description, then the title) until it fits.
         function buildVideoDeepLink(card) {
             const base = state.global.videoLiffUrl;
-            const params = new URLSearchParams();
-            params.set("video", card.videoUrl || "");
-            params.set("poster", card.imageUrl || "");
-            params.set("title", card.title || "");
-            params.set("desc", card.description || "");
-            (card.buttons || []).slice(0, 3).forEach((btn, i) => {
-                params.set(`link${i + 1}_label`, btn.label || "");
-                params.set(`link${i + 1}_url`, isValidUrl(btn.url) ? btn.url : "https://line.me");
-            });
-            const sep = base.includes('?') ? '&' : '?';
-            return base + sep + params.toString();
+            const MAX_LEN = 950; // safety buffer under LINE's 1000-char limit
+
+            function build(titleText, descText, buttonCount) {
+                const params = new URLSearchParams();
+                params.set("video", card.videoUrl || "");
+                params.set("poster", card.imageUrl || "");
+                if (titleText) params.set("title", titleText);
+                if (descText) params.set("desc", descText);
+                (card.buttons || []).slice(0, buttonCount).forEach((btn, i) => {
+                    params.set(`link${i + 1}_label`, btn.label || "");
+                    params.set(`link${i + 1}_url`, isValidUrl(btn.url) ? btn.url : "https://line.me");
+                });
+                const sep = base.includes('?') ? '&' : '?';
+                return base + sep + params.toString();
+            }
+
+            let title = card.title || "";
+            let desc = card.description || "";
+            let buttonCount = Math.min(3, (card.buttons || []).length);
+            let url = build(title, desc, buttonCount);
+
+            // Step 1: drop extra button links beyond the first — they're already
+            // shown as footer buttons directly on the card, so this is the least
+            // costly thing to trim first.
+            while (url.length > MAX_LEN && buttonCount > 1) {
+                buttonCount--;
+                url = build(title, desc, buttonCount);
+            }
+            // Step 2: progressively shorten the description
+            while (url.length > MAX_LEN && desc.length > 0) {
+                desc = desc.length > 20 ? desc.slice(0, desc.length - 20).trim() : "";
+                url = build(title, desc, buttonCount);
+            }
+            // Step 3: shorten the title as a last resort
+            while (url.length > MAX_LEN && title.length > 10) {
+                title = title.slice(0, title.length - 5).trim();
+                url = build(title, desc, buttonCount);
+            }
+            // Step 4: if STILL too long (e.g. extremely long video/poster URLs), drop the last button link too
+            while (url.length > MAX_LEN && buttonCount > 0) {
+                buttonCount--;
+                url = build(title, desc, buttonCount);
+            }
+
+            return url;
         }
 
         function buildHeroBlock(card, standalone) {
